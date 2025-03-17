@@ -18,7 +18,7 @@ This bot works with local language model. Tested via LM Studio.
 After running a bot, you can send a message to it.
 Bot retrive a response from local language model and send it back to you or return error message.
 Bot has in memory storage context and user settings. After restarting bot, all context and settings will be lost.
-You can use /clear command to reset context and settings.
+You can use /clear command to reset context.
 
 # Commands
 
