@@ -25,6 +25,6 @@ You can use /clear command to reset context and settings.
 - /start - start bot
 - /help - show help message
 - /clear - clear context and settings
-- /system (Place here your system fingerprint) - set your system fingerprint. This fingerprint will be used in every response.
-- /temperature <0-1> - set temperature of language model in range 0.0-1.0
+- /system Place here your system fingerprint - set your system fingerprint. This fingerprint will be used in every response.
+- /temperature 0.0-1.0 - set temperature of language model in range 0.0-1.0
 - /stop - stop previous response (Not working yet)
