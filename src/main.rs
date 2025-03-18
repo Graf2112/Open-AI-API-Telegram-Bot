@@ -2,20 +2,20 @@
 //!
 //! Main application entry point that initializes and runs the Telegram bot
 //! with Llama AI integration. Handles configuration loading and dispatcher setup.
-use command_handler::{answer, invalid, message_handler, Command};
+
 use config::Config;
 use lazy_static::lazy_static;
+use telegram::handlers;
 use std::{collections::HashSet, sync::Arc};
-use teloxide::{
-    dispatching::{HandlerExt, UpdateFilterExt},
-    prelude::*,
-};
+use handlers::get_storage_handler;
+use teloxide::prelude::*;
 use tokio::sync::Mutex;
 
-mod command_handler;
+mod db;
 mod lm_types;
 mod storage;
 mod system;
+mod telegram;
 
 lazy_static! {
     /// Global configuration instance
@@ -35,6 +35,24 @@ pub type Error = Box<dyn std::error::Error + Send + Sync>;
 /// * `Result<(), Error>` - Success or error status of bot execution
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    let mut db_enabled = false;
+
+    println!("Preconfigure...");
+    // Initialize database if enabled in configuration
+    if CONFIG.get_bool("enable_db").unwrap_or(false) {
+        println!("Initializing database...");
+        // Initialize database
+        if db::sqlite::init_db().await.is_err() {
+            println!("Failed to initialize database: ");
+            return Ok(());
+        };
+        println!("Running bot with database enabled.");
+        db_enabled = true;
+    } else {
+        // Configure message handler tree
+        println!("Running bot with in-memory storage.");
+    }
+
     // Load bot token from configuration
     let token = CONFIG.get_string("token").unwrap_or(String::new());
 
@@ -44,21 +62,16 @@ async fn main() -> Result<(), Error> {
     // Initialize thread-safe set for active chat tracking
     let senders: Arc<Mutex<HashSet<i64>>> = Arc::new(Mutex::new(HashSet::new()));
 
+
     println!("Starting bot...");
     println!("GetMe status: {:?}", bot.get_me().await);
 
-    // Configure message handler tree
-    let handler = dptree::entry()
-        .branch(
-            Update::filter_message()
-                .branch(dptree::entry().filter_command::<Command>().endpoint(answer)),
-        )
-        .branch(Update::filter_message().endpoint(message_handler))
-        .branch(Update::filter_message().endpoint(invalid));
+    // Initialize default handler
+    let handler = get_storage_handler();
 
     // Start the dispatcher with configured dependencies
     Dispatcher::builder(bot, handler)
-        .dependencies(dptree::deps![senders])
+        .dependencies(dptree::deps![senders, db_enabled])
         .enable_ctrlc_handler()
         .build()
         .dispatch()

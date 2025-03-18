@@ -5,7 +5,7 @@ use tokio::sync::Mutex;
 
 ///Store system fingerprint for each user
 static SYSTEM_FINGERPRINT: Lazy<Mutex<HashMap<i64, String>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+    Lazy::new(|| Mutex::new(HashMap::with_capacity(0)));
 
 /// Sets the system fingerprint for a specific user
 ///

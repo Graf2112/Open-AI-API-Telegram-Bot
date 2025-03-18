@@ -4,7 +4,8 @@ use once_cell::sync::Lazy;
 use tokio::sync::Mutex;
 
 ///Store temperature for each user
-pub static TEMPERATURE: Lazy<Mutex<HashMap<i64, f32>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+pub static TEMPERATURE: Lazy<Mutex<HashMap<i64, f32>>> = 
+    Lazy::new(|| Mutex::new(HashMap::with_capacity(0)));
 
 ///Set the temperature for a specific user
 ///

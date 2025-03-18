@@ -7,7 +7,7 @@ use crate::lm_types::Message;
 
 //Store conversation history per user
 static CONVERSATION: Lazy<Mutex<HashMap<i64, Vec<Message>>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+    Lazy::new(|| Mutex::new(HashMap::with_capacity(0)));
 
 /// Clears conversation history for a specific user or all users
 ///
