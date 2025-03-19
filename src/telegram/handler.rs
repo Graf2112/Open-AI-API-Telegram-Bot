@@ -3,9 +3,7 @@
 //! This module implements the telegram bot command handling functionality.
 //! It processes user commands and manages interactions with the Llama AI model.
 use crate::{
-    storage::{
-        conversation::clear_conversation_context, fingerprint::set_system_fingerprint, temperature,
-    },
+    storage::Storage,
     system,
 };
 use std::{collections::HashSet, sync::Arc};
@@ -69,6 +67,7 @@ pub async fn answer(
     msg: Message,
     command: Command,
     senders: Arc<Mutex<HashSet<i64>>>,
+    storage: Arc<Mutex<Box<dyn Storage>>>,
 ) -> ResponseResult<()> {
     match command {
         Command::Start => {
@@ -89,11 +88,12 @@ pub async fn answer(
                 let bot_clone = bot.clone();
                 let chat_id = msg.chat.id;
                 let senders_clone = senders.clone();
+                let storage_clone = storage.clone();
                 bot.send_chat_action(msg.chat.id, teloxide::types::ChatAction::Typing)
                     .await?;
 
                 tokio::spawn(async move {
-                    let answer = system::send_message(text, chat_id.0).await;
+                    let answer = system::send_message(text, chat_id.0, storage_clone).await;
                     if let Err(e) = bot_clone.send_message(chat_id, answer).await {
                         println!("Failed to send message: {}", e);
                     }
@@ -102,16 +102,16 @@ pub async fn answer(
             }
         }
         Command::System(fingerprint) => {
-            set_system_fingerprint(msg.chat.id.0, fingerprint).await;
+            storage.lock().await.set_system_fingerprint(msg.chat.id.0, fingerprint).await;
             bot.send_message(msg.chat.id, "System fingerprint set")
                 .await?;
         }
         Command::Temperature(temperature) => {
-            temperature::set_temperature(msg.chat.id.0, temperature).await;
+            storage.lock().await.set_temperature(msg.chat.id.0, temperature).await;
             bot.send_message(msg.chat.id, "Temperature set").await?;
         }
         Command::Clear => {
-            clear_conversation_context(msg.chat.id.0).await;
+            storage.lock().await.clear_conversation_context(msg.chat.id.0).await;
             bot.send_message(msg.chat.id, "Conversation cleared")
                 .await?;
         }
@@ -136,6 +136,7 @@ pub async fn message_handler(
     bot: Bot,
     msg: Message,
     senders: Arc<Mutex<HashSet<i64>>>,
+    storage: Arc<Mutex<Box<dyn Storage>>>,
 ) -> ResponseResult<()> {
     if let Some(text) = msg.text() {
         let mut locked_senders = senders.lock().await;
@@ -150,17 +151,19 @@ pub async fn message_handler(
             locked_senders.insert(msg.chat.id.0);
 
             drop(locked_senders);
-
+            
             let bot_clone = bot.clone();
             let chat_id = msg.chat.id;
             let senders_clone = senders.clone();
             let text = text.to_string();
+            let storage_clone = storage.clone();
+           
 
             bot.send_chat_action(msg.chat.id, teloxide::types::ChatAction::Typing)
                 .await?;
 
             tokio::spawn(async move {
-                let answer = system::send_message(text, chat_id.0).await;
+                let answer = system::send_message(text, chat_id.0, storage_clone).await;
                 if let Err(e) = bot_clone.send_message(chat_id, answer).await {
                     println!("Failed to send message: {}", e);
                 }
@@ -173,7 +176,6 @@ pub async fn message_handler(
 
     Ok(())
 }
-
 /// Invalid command handler
 ///
 /// Responds to unrecognized bot commands

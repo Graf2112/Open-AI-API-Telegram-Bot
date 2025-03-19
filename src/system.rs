@@ -9,16 +9,13 @@ use reqwest::{
     header::{self, HeaderMap},
     Client,
 };
+use tokio::sync::Mutex;
 
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use crate::{
     lm_types::{Answer, Message},
-    storage::{
-        conversation::{get_history, update_or_insert_history},
-        fingerprint::get_system_fingerprint,
-        temperature::get_temperature,
-    },
+    storage::Storage,
     CONFIG,
 };
 
@@ -39,7 +36,7 @@ pub fn get_config() -> Result<Config, ConfigError> {
 ///
 /// # Returns
 /// * `String` - AI model response or error message
-pub async fn send_message(context: String, user_id: i64) -> String {
+pub async fn send_message(context: String, user_id: i64, storage: Arc<Mutex<Box<dyn Storage>>>) -> String {
     let client = Client::new();
     let url = CONFIG.get_string("url").unwrap_or(String::new());
 
@@ -50,7 +47,7 @@ pub async fn send_message(context: String, user_id: i64) -> String {
 
     // Get or create conversation history for user
     // And add user message to history
-    update_or_insert_history(
+    storage.lock().await.set_conversation_context(
         user_id,
         Message {
             role: "user".to_string(),
@@ -59,15 +56,15 @@ pub async fn send_message(context: String, user_id: i64) -> String {
     )
     .await;
 
-    let temperature = get_temperature(user_id).await;
+    let temperature = storage.lock().await.get_temperature(user_id).await;
 
-    let fingerprint = get_system_fingerprint(user_id).await;
+    let fingerprint = storage.lock().await.get_system_fingerprint(user_id).await;
 
     let mut messages = vec![Message {
         role: "system".to_string(),
         content: fingerprint.clone(),
     }];
-    messages.extend(get_history(user_id).await);
+    messages.extend(storage.lock().await.get_conversation_context(user_id).await);
 
     let mut header = HeaderMap::new();
     header.insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
@@ -96,7 +93,7 @@ pub async fn send_message(context: String, user_id: i64) -> String {
                         "Llama return answer.".green()
                     );
 
-                    update_or_insert_history(user_id, text.choices[0].message.clone()).await;
+                    storage.lock().await.set_conversation_context(user_id, text.choices[0].message.clone()).await;
 
                     format!("{}", text.choices[0].message.content)
                 }
