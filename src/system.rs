@@ -36,7 +36,11 @@ pub fn get_config() -> Result<Config, ConfigError> {
 ///
 /// # Returns
 /// * `String` - AI model response or error message
-pub async fn send_message(context: String, user_id: i64, storage: Arc<Mutex<Box<dyn Storage>>>) -> String {
+pub async fn send_message(
+    context: String,
+    user_id: i64,
+    storage: Arc<Mutex<Box<dyn Storage>>>,
+) -> String {
     let client = Client::new();
     let url = CONFIG.get_string("url").unwrap_or(String::new());
 
@@ -47,14 +51,17 @@ pub async fn send_message(context: String, user_id: i64, storage: Arc<Mutex<Box<
 
     // Get or create conversation history for user
     // And add user message to history
-    storage.lock().await.set_conversation_context(
-        user_id,
-        Message {
-            role: "user".to_string(),
-            content: context.clone(),
-        },
-    )
-    .await;
+    storage
+        .lock()
+        .await
+        .set_conversation_context(
+            user_id,
+            Message {
+                role: "user".to_string(),
+                content: context.clone(),
+            },
+        )
+        .await;
 
     let temperature = storage.lock().await.get_temperature(user_id).await;
 
@@ -93,7 +100,11 @@ pub async fn send_message(context: String, user_id: i64, storage: Arc<Mutex<Box<
                         "Llama return answer.".green()
                     );
 
-                    storage.lock().await.set_conversation_context(user_id, text.choices[0].message.clone()).await;
+                    storage
+                        .lock()
+                        .await
+                        .set_conversation_context(user_id, text.choices[0].message.clone())
+                        .await;
 
                     format!("{}", text.choices[0].message.content)
                 }

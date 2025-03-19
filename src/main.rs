@@ -5,8 +5,8 @@
 
 use config::Config;
 use lazy_static::lazy_static;
-use telegram::get_storage_handler;
 use std::{collections::HashSet, sync::Arc};
+use telegram::get_storage_handler;
 use teloxide::prelude::*;
 use tokio::sync::Mutex;
 
@@ -68,7 +68,7 @@ async fn main() -> Result<(), Error> {
     let handler = get_storage_handler();
 
     // Initialize storage
-    let storage =Arc::new(Mutex::new(storage::create_storage(db_enabled).await));
+    let storage = Arc::new(Mutex::new(storage::create_storage(db_enabled).await));
 
     // Start the dispatcher with configured dependencies
     Dispatcher::builder(bot, handler)

@@ -1,5 +1,10 @@
 use handler::{answer, invalid, message_handler, Command};
-use teloxide::{dispatching::{HandlerExt, UpdateFilterExt}, dptree::{self, Handler}, prelude::DependencyMap, types::Update};
+use teloxide::{
+    dispatching::{HandlerExt, UpdateFilterExt},
+    dptree::{self, Handler},
+    prelude::DependencyMap,
+    types::Update,
+};
 
 pub mod handler;
 

@@ -2,10 +2,7 @@
 //!
 //! This module implements the telegram bot command handling functionality.
 //! It processes user commands and manages interactions with the Llama AI model.
-use crate::{
-    storage::Storage,
-    system,
-};
+use crate::{storage::Storage, system};
 use std::{collections::HashSet, sync::Arc};
 use teloxide::{prelude::*, types::Message, utils::command::BotCommands, Bot};
 use tokio::sync::Mutex;
@@ -102,16 +99,28 @@ pub async fn answer(
             }
         }
         Command::System(fingerprint) => {
-            storage.lock().await.set_system_fingerprint(msg.chat.id.0, fingerprint).await;
+            storage
+                .lock()
+                .await
+                .set_system_fingerprint(msg.chat.id.0, fingerprint)
+                .await;
             bot.send_message(msg.chat.id, "System fingerprint set")
                 .await?;
         }
         Command::Temperature(temperature) => {
-            storage.lock().await.set_temperature(msg.chat.id.0, temperature).await;
+            storage
+                .lock()
+                .await
+                .set_temperature(msg.chat.id.0, temperature)
+                .await;
             bot.send_message(msg.chat.id, "Temperature set").await?;
         }
         Command::Clear => {
-            storage.lock().await.clear_conversation_context(msg.chat.id.0).await;
+            storage
+                .lock()
+                .await
+                .clear_conversation_context(msg.chat.id.0)
+                .await;
             bot.send_message(msg.chat.id, "Conversation cleared")
                 .await?;
         }
@@ -151,13 +160,12 @@ pub async fn message_handler(
             locked_senders.insert(msg.chat.id.0);
 
             drop(locked_senders);
-            
+
             let bot_clone = bot.clone();
             let chat_id = msg.chat.id;
             let senders_clone = senders.clone();
             let text = text.to_string();
             let storage_clone = storage.clone();
-           
 
             bot.send_chat_action(msg.chat.id, teloxide::types::ChatAction::Typing)
                 .await?;
