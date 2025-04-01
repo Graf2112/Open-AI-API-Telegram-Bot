@@ -12,7 +12,7 @@ pub async fn init_db() -> Result<Pool<Sqlite>, Error> {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER NOT NULL,
                 message TEXT NOT NULL,
-                response TEXT NOT NULL,
+                responder TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )",
         )

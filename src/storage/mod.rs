@@ -8,7 +8,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use tokio::sync::Mutex;
 
-use crate::{db, lm_types::Message};
+use crate::{db, lm_types::Message, CONFIG};
 
 #[async_trait]
 pub trait Storage: Send + Sync {
@@ -24,10 +24,21 @@ pub trait Storage: Send + Sync {
 }
 
 // Фабричный метод для создания нужного хранилища
-pub async fn create_storage(db_enabled: bool) -> Box<dyn Storage> {
-    if db_enabled {
+pub async fn create_storage() -> Box<dyn Storage> {
+    // Initialize database if enabled in configuration
+    if CONFIG.get_bool("enable_db").unwrap_or(false) {
+        println!("Initializing database...");
+        // Initialize database
+        if db::sqlite::init_db().await.is_err() {
+            println!("Failed to initialize database: ");
+            println!("Running bot with in-memory storage.");
+            return Box::new(MemoryStorage::new());
+        };
+        println!("Running bot with database enabled.");
         Box::new(DbStorage::new().await)
     } else {
+        // Configure message handler tree
+        println!("Running bot with in-memory storage.");
         Box::new(MemoryStorage::new())
     }
 }
@@ -106,11 +117,11 @@ impl Storage for DbStorage {
             .fetch_one(&*db)
             .await;
         if let Ok(row) = qr {
-            if row.context_len > 0 {
-                let len = if row.context_len > 20 {
+            if row.context_len.unwrap_or(0) > 0 {
+                let len = if row.context_len.unwrap_or(0) > 20 {
                     20
                 } else {
-                    row.context_len
+                    row.context_len.unwrap_or(0)
                 };
                 let qr = query!(
                     "SELECT message, responder FROM context WHERE user_id = $1 ORDER BY id DESC LIMIT $2",
@@ -122,7 +133,7 @@ impl Storage for DbStorage {
                     for row in rows {
                         messages.push(Message {
                             content: row.message,
-                            role: row.responder.unwrap_or("User".to_string()),
+                            role: row.responder,
                         });
                     }
                     messages.reverse();
@@ -148,7 +159,10 @@ impl Storage for DbStorage {
         println!(
             "Update user context_len: {:?}",
             db.execute(query!(
-                "UPDATE users SET context_len = context_len + 1 WHERE user_id = $1",
+                "INSERT INTO users (user_id, context_len) 
+                VALUES ($1, 0) 
+            ON CONFLICT(user_id)
+            DO UPDATE SET context_len = context_len + 1 WHERE user_id = $1",
                 chat_id
             ))
             .await

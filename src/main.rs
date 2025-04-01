@@ -34,23 +34,7 @@ pub type Error = Box<dyn std::error::Error + Send + Sync>;
 /// * `Result<(), Error>` - Success or error status of bot execution
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let mut db_enabled = false;
-
     println!("Preconfigure...");
-    // Initialize database if enabled in configuration
-    if CONFIG.get_bool("enable_db").unwrap_or(false) {
-        println!("Initializing database...");
-        // Initialize database
-        if db::sqlite::init_db().await.is_err() {
-            println!("Failed to initialize database: ");
-            return Ok(());
-        };
-        println!("Running bot with database enabled.");
-        db_enabled = true;
-    } else {
-        // Configure message handler tree
-        println!("Running bot with in-memory storage.");
-    }
 
     // Load bot token from configuration
     let token = CONFIG.get_string("token").unwrap_or(String::new());
@@ -68,7 +52,7 @@ async fn main() -> Result<(), Error> {
     let handler = get_storage_handler();
 
     // Initialize storage
-    let storage = Arc::new(Mutex::new(storage::create_storage(db_enabled).await));
+    let storage = Arc::new(Mutex::new(storage::create_storage().await));
 
     // Start the dispatcher with configured dependencies
     Dispatcher::builder(bot, handler)
