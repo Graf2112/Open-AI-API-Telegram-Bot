@@ -22,7 +22,7 @@ Bot has in memory or SQLite storage context and user settings. After restarting 
 You can use /clear command to reset context.
 
 # Commands
-
+In your telegram bot, use the following commands:
 - /start - start bot
 - /help - show help message
 - /clear - clear context and settings
