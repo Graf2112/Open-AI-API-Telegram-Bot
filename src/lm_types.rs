@@ -1,6 +1,6 @@
 /// API Response structure for Llama model
 #[allow(unused)]
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Debug)]
 pub struct Answer {
     /// Unique response identifier
     pub id: String,
@@ -20,7 +20,7 @@ pub struct Answer {
 
 /// Structure representing a single response choice
 #[allow(unused)]
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Debug)]
 pub struct Choice {
     /// Choice index in the response array
     pub index: u32,
@@ -34,7 +34,7 @@ pub struct Choice {
 
 /// Token usage statistics structure
 #[allow(unused)]
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Debug)]
 pub struct Usage {
     /// Number of tokens in the prompt
     pub prompt_tokens: u32,
@@ -46,10 +46,12 @@ pub struct Usage {
 
 /// Message structure for API communication
 #[allow(unused)]
-#[derive(serde::Deserialize, serde::Serialize, Clone)]
+#[derive(serde::Deserialize, serde::Serialize, Clone, Debug)]
 pub struct Message {
     /// Role of the message sender (system/user/assistant)
     pub role: String,
     /// Actual message content
     pub content: String,
+    /// Reasoning content (if applicable)
+    pub reasoning: Option<String>,
 }

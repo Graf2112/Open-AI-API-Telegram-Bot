@@ -17,33 +17,27 @@ use tokio::sync::Mutex;
     description = "These commands are supported:"
 )]
 pub enum Command {
-    /// Starts the bot and displays help message
-    #[command(description = "начало работы с ботом. Для получения списка команд напишите /help")]
+    // Starts the bot and displays help message
+    #[command(description = "bot conversation start. Use /help to get commands list.")]
     Start,
-    /// Displays list of available commands
-    #[command(description = "отображение команд.")]
+    // Displays list of available commands
+    #[command(description = "displays description of all commands.")]
     Help,
-    /// Processes chat requests with Llama AI
-    /// Takes a String parameter containing the user's prompt
-    #[command(
-        description = "напишите текст запроса после команды. Он будет использован как promt для запроса."
-    )]
+    // Processes chat requests with Llama AI
+    // Takes a String parameter containing the user's prompt
+    #[command(description = "place your promt after this command. It will be sent to the model.")]
     Chat(String),
-    /// Clears conversation history
-    #[command(description = "очищает контекст диалога.")]
+    // Clears conversation history
+    #[command(description = "clears conversation context.")]
     Clear,
-    /// Sets system fingerprint for the model
-    #[command(
-        description = "устанавливает системный fingerprint для модели. Для установки напишите сообщение с системным указанием модели."
-    )]
+    // Sets system fingerprint for the model
+    #[command(description = "set system fingerprint..")]
     System(String),
-    /// Sets temperature for the model
-    #[command(
-        description = "устанавливает температуру для модели. Для установки укажите температуру от 0.0 до 1.0."
-    )]
+    // Sets temperature for the model
+    #[command(description = "set temperature for model. Choose from 0.0 to 1.0. Default is 0.7.")]
     Temperature(f32),
-    /// Stops current operation
-    #[command(description = "остановить текущую операцию.")]
+    // Stops current operation
+    #[command(description = "stops current operation.")]
     Stop,
 }
 
@@ -64,7 +58,7 @@ pub async fn answer(
     msg: Message,
     command: Command,
     senders: Arc<Mutex<HashSet<i64>>>,
-    storage: Arc<Mutex<Box<dyn Storage>>>,
+    storage: Arc<dyn Storage>,
 ) -> ResponseResult<()> {
     match command {
         Command::Start => {
@@ -90,9 +84,16 @@ pub async fn answer(
                     .await?;
 
                 tokio::spawn(async move {
-                    let answer = system::send_message(text, chat_id.0, storage_clone).await;
-                    if let Err(e) = bot_clone.send_message(chat_id, answer).await {
-                        println!("Failed to send message: {}", e);
+                    let answer = system::reqwest_ai(text, chat_id.0, storage_clone).await;
+
+                    for ans in answer {
+                        if let Err(e) = bot_clone
+                            // .parse_mode(teloxide::types::ParseMode::Markdown)
+                            .send_message(chat_id, ans)
+                            .await
+                        {
+                            println!("Failed to send message: {}", e);
+                        }
                     }
                     senders_clone.lock().await.remove(&chat_id.0);
                 });
@@ -100,25 +101,25 @@ pub async fn answer(
         }
         Command::System(fingerprint) => {
             storage
-                .lock()
-                .await
                 .set_system_fingerprint(msg.chat.id.0, fingerprint)
                 .await;
             bot.send_message(msg.chat.id, "System fingerprint set")
                 .await?;
         }
         Command::Temperature(temperature) => {
+            let mut temperature = temperature as f32;
+
+            if !{ 0.0..=1.0 }.contains(&temperature) {
+                temperature = 0.7;
+            }
+
             storage
-                .lock()
-                .await
                 .set_temperature(msg.chat.id.0, temperature)
                 .await;
             bot.send_message(msg.chat.id, "Temperature set").await?;
         }
         Command::Clear => {
             storage
-                .lock()
-                .await
                 .clear_conversation_context(msg.chat.id.0)
                 .await;
             bot.send_message(msg.chat.id, "Conversation cleared")
@@ -145,7 +146,7 @@ pub async fn message_handler(
     bot: Bot,
     msg: Message,
     senders: Arc<Mutex<HashSet<i64>>>,
-    storage: Arc<Mutex<Box<dyn Storage>>>,
+    storage: Arc<dyn Storage>,
 ) -> ResponseResult<()> {
     if let Some(text) = msg.text() {
         let mut locked_senders = senders.lock().await;
@@ -171,10 +172,17 @@ pub async fn message_handler(
                 .await?;
 
             tokio::spawn(async move {
-                let answer = system::send_message(text, chat_id.0, storage_clone).await;
-                if let Err(e) = bot_clone.send_message(chat_id, answer).await {
-                    println!("Failed to send message: {}", e);
+                let answer = system::reqwest_ai(text, chat_id.0, storage_clone).await;
+                for ans in answer {
+                    if let Err(e) = bot_clone
+                        // .parse_mode(teloxide::types::ParseMode::Markdown)
+                        .send_message(chat_id, ans)
+                        .await
+                    {
+                        println!("Failed to send message: {}", e);
+                    }
                 }
+
                 senders_clone.lock().await.remove(&chat_id.0);
             });
         }

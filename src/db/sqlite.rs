@@ -28,7 +28,7 @@ pub async fn init_db() -> Result<Pool<Sqlite>, Error> {
                 user_id INTEGER PRIMARY KEY NOT NULL,
                 system TEXT,
                 temperature FLOAT,
-                context_len INTEGER
+                context_len INTEGER NOT NULL
             )",
         )
         .execute(&db)

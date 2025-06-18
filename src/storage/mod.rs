@@ -24,28 +24,28 @@ pub trait Storage: Send + Sync {
 }
 
 // Фабричный метод для создания нужного хранилища
-pub async fn create_storage() -> Box<dyn Storage> {
-    // Initialize database if enabled in configuration
+pub async fn create_storage() -> Arc<dyn Storage> {
     if CONFIG.get_bool("enable_db").unwrap_or(false) {
-        println!("Initializing database...");
-        // Initialize database
-        if db::sqlite::init_db().await.is_err() {
-            println!("Failed to initialize database: ");
-            println!("Running bot with in-memory storage.");
-            return Box::new(MemoryStorage::new());
-        };
-        println!("Running bot with database enabled.");
-        Box::new(DbStorage::new().await)
+        println!("Initializing database…");
+        match db::sqlite::init_db().await {
+            Ok(_) => {
+                println!("Running bot with database enabled.");
+                Arc::new(DbStorage::new().await)
+            }
+            Err(e) => {
+                eprintln!("DB init error: {e}. Falling back to in‑memory.");
+                Arc::new(MemoryStorage::new())
+            }
+        }
     } else {
-        // Configure message handler tree
-        println!("Running bot with in-memory storage.");
-        Box::new(MemoryStorage::new())
+        println!("Running bot with in‑memory storage.");
+        Arc::new(MemoryStorage::new())
     }
 }
 
+
 // Реализации хранилищ
 struct MemoryStorage {
-    // Ваши текущие структуры для хранения в памяти
 }
 
 struct DbStorage {
@@ -116,12 +116,14 @@ impl Storage for DbStorage {
         let qr = query!("SELECT context_len FROM users WHERE user_id = $1", user_id)
             .fetch_one(&*db)
             .await;
+
+        let max_conversation_len = CONFIG.get("max_conversation_len").unwrap_or(20);
         if let Ok(row) = qr {
-            if row.context_len.unwrap_or(0) > 0 {
-                let len = if row.context_len.unwrap_or(0) > 20 {
-                    20
+            if row.context_len > 0 {
+                let len = if row.context_len > max_conversation_len {
+                    max_conversation_len
                 } else {
-                    row.context_len.unwrap_or(0)
+                    row.context_len
                 };
                 let qr = query!(
                     "SELECT message, responder FROM context WHERE user_id = $1 ORDER BY id DESC LIMIT $2",
@@ -134,6 +136,7 @@ impl Storage for DbStorage {
                         messages.push(Message {
                             content: row.message,
                             role: row.responder,
+                            reasoning: None,
                         });
                     }
                     messages.reverse();

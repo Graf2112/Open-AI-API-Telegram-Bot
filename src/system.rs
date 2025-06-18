@@ -9,7 +9,6 @@ use reqwest::{
     header::{self, HeaderMap},
     Client,
 };
-use tokio::sync::Mutex;
 
 use std::{path::Path, sync::Arc};
 
@@ -18,6 +17,8 @@ use crate::{
     storage::Storage,
     CONFIG,
 };
+
+const CHUNK_SIZE: usize = 4095;
 
 /// Loads configuration from settings.toml file
 ///
@@ -33,45 +34,48 @@ pub fn get_config() -> Result<Config, ConfigError> {
 ///
 /// # Arguments
 /// * `context` - User message to be processed
+/// * `user_id` - User identifier
+/// * `storage` - Storage handler for conversation history
 ///
 /// # Returns
 /// * `String` - AI model response or error message
-pub async fn send_message(
+pub async fn reqwest_ai(
     context: String,
     user_id: i64,
-    storage: Arc<Mutex<Box<dyn Storage>>>,
-) -> String {
+    storage: Arc<dyn Storage>,
+) -> Vec<String> {
     let client = Client::new();
     let url = CONFIG.get_string("url").unwrap_or(String::new());
 
     let model = CONFIG.get_string("model");
     if model.is_err() {
-        return "Model not found".to_string();
+        return vec!["Model not found".to_string()];
     }
 
     // Get or create conversation history for user
     // And add user message to history
     storage
-        .lock()
-        .await
         .set_conversation_context(
             user_id,
             Message {
                 role: "user".to_string(),
                 content: context.clone(),
+                reasoning: None,
             },
         )
         .await;
 
-    let temperature = storage.lock().await.get_temperature(user_id).await;
+    let temperature = storage.get_temperature(user_id).await;
 
-    let fingerprint = storage.lock().await.get_system_fingerprint(user_id).await;
+    let fingerprint = storage.get_system_fingerprint(user_id).await;
 
     let mut messages = vec![Message {
         role: "system".to_string(),
         content: fingerprint.clone(),
+        reasoning: None,
     }];
-    messages.extend(storage.lock().await.get_conversation_context(user_id).await);
+
+    messages.extend(storage.get_conversation_context(user_id).await);
 
     let mut header = HeaderMap::new();
     header.insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
@@ -86,7 +90,7 @@ pub async fn send_message(
         "stream": false
     });
 
-    println!("{}: {}", chrono::Local::now(), "Лама печатает".green());
+    println!("{}: {}", chrono::Local::now(), "AI writing".green());
     let res = client.post(url).headers(header).json(&body).send().await;
 
     match res {
@@ -94,29 +98,51 @@ pub async fn send_message(
             let text = res.json::<Answer>().await;
             match text {
                 Ok(text) => {
-                    println!(
-                        "{}: {}",
-                        chrono::Local::now(),
-                        "Llama return answer.".green()
-                    );
+                    // println!("Answer: {:?}", text);
+                    println!("{}: {}", chrono::Local::now(), "AI return answer.".green());
 
                     storage
-                        .lock()
-                        .await
                         .set_conversation_context(user_id, text.choices[0].message.clone())
                         .await;
 
-                    format!("{}", text.choices[0].message.content)
+                    let ret_message: Vec<char> = text.choices[0].message.content.chars().collect();
+                    let mut ret_vec: Vec<String> = vec![];
+
+                    for chunk in ret_message.chunks(CHUNK_SIZE) {
+                        ret_vec.push(format!("{}", chunk.iter().collect::<String>()));
+                    }
+
+                    ret_vec
                 }
                 Err(e) => {
                     println!("{}{}", "Llama send wrong answer format: ".red(), e);
-                    format!("Error with response: {}", e.to_string())
+                    vec![format!("Error with response: {}", e.to_string())]
                 }
             }
         }
         Err(e) => {
             println!("{}{}", "Llama connection error: ".red(), e);
-            format!("Unable to connect: {}", e.to_string())
+            vec![format!("Unable to connect: {}", e.to_string())]
         }
     }
+}
+
+#[allow(dead_code)]
+fn replace_escape_sequences(input: &str) -> String {
+    input
+        // .replace("*", "\\*")
+        .replace(".", "\\.")
+        .replace("-", "\\-")
+        // .replace(">", "\\>")
+        // .replace("_", "\\_")
+        .replace("/", "\\/")
+        .replace("^", "\\^")
+        .replace("=", "\\=")
+        .replace("!", "\\!")
+        .replace("|", "\\|")
+        .replace("#", "\\#")
+        .replace("(", "\\(")
+        .replace(")", "\\)")
+        .replace("{", "\\{")
+        .replace("}", "\\}")
 }

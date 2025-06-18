@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use once_cell::sync::Lazy;
 use tokio::sync::Mutex;
 
-use crate::lm_types::Message;
+use crate::{lm_types::Message, CONFIG};
 
 //Store conversation history per user
 static CONVERSATION: Lazy<Mutex<HashMap<i64, Vec<Message>>>> =
@@ -28,10 +28,11 @@ pub async fn clear_conversation_context(user_id: i64) {
 /// * `message` - Message to be added to the conversation history
 pub async fn update_or_insert_history(user_id: i64, message: Message) {
     let mut conversations = CONVERSATION.lock().await;
+    let max_conversation_len = CONFIG.get("max_conversation_len").unwrap_or(20);
     let history = conversations.entry(user_id).or_insert_with(Vec::new);
     history.push(message);
-    if history.len() > 30 {
-        *history = history.split_off(history.len() - 30);
+    if history.len() > max_conversation_len {
+        *history = history.split_off(history.len() - max_conversation_len);
     }
 }
 

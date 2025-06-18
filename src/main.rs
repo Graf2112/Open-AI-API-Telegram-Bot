@@ -52,7 +52,7 @@ async fn main() -> Result<(), Error> {
     let handler = get_storage_handler();
 
     // Initialize storage
-    let storage = Arc::new(Mutex::new(storage::create_storage().await));
+    let storage = storage::create_storage().await;
 
     // Start the dispatcher with configured dependencies
     Dispatcher::builder(bot, handler)
