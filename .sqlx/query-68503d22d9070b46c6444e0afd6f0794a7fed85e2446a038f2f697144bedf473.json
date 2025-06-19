@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO users (user_id, context_len) \n                VALUES ($1, 0) \n            ON CONFLICT(user_id)\n            DO UPDATE SET context_len = context_len + 1 WHERE user_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "68503d22d9070b46c6444e0afd6f0794a7fed85e2446a038f2f697144bedf473"
+}

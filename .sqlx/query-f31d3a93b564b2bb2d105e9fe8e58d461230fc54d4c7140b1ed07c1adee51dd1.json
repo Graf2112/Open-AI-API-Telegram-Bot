@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT temperature FROM users WHERE user_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "name": "temperature",
+        "ordinal": 0,
+        "type_info": "Float"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "f31d3a93b564b2bb2d105e9fe8e58d461230fc54d4c7140b1ed07c1adee51dd1"
+}

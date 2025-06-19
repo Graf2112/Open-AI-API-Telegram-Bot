@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT system FROM users WHERE user_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "name": "system",
+        "ordinal": 0,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "24abbed8411fce35e40855b815f32cfc32511ff3f60a2c196e1e68cd1b51456b"
+}

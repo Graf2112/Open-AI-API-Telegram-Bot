@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO users(user_id, temperature, context_len) \n                VALUES ($1, $2, 0) \n            ON CONFLICT(user_id) \n                DO UPDATE SET temperature = $2 \n                WHERE user_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "e0047b24e076c7d780323b31f597f874563594086bb1052ab4aabef8a4d20773"
+}
