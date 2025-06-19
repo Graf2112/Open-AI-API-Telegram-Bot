@@ -4,11 +4,11 @@
 //! with Llama AI integration. Handles configuration loading and dispatcher setup.
 
 use config::Config;
+use dashmap::DashSet;
 use lazy_static::lazy_static;
-use std::{collections::HashSet, sync::Arc};
+use std::sync::Arc;
 use telegram::get_storage_handler;
 use teloxide::prelude::*;
-use tokio::sync::Mutex;
 
 mod db;
 mod lm_types;
@@ -42,9 +42,6 @@ async fn main() -> Result<(), Error> {
     // Initialize bot instance
     let bot = Bot::new(token);
 
-    // Initialize thread-safe set for active chat tracking
-    let senders: Arc<Mutex<HashSet<i64>>> = Arc::new(Mutex::new(HashSet::new()));
-
     println!("Starting bot...");
     println!("GetMe status: {:?}", bot.get_me().await);
 
@@ -54,9 +51,11 @@ async fn main() -> Result<(), Error> {
     // Initialize storage
     let storage = storage::create_storage().await;
 
+    let busy: Arc<DashSet<i64>> = Arc::new(DashSet::new());
+
     // Start the dispatcher with configured dependencies
     Dispatcher::builder(bot, handler)
-        .dependencies(dptree::deps![senders, storage])
+        .dependencies(dptree::deps![storage, busy])
         .enable_ctrlc_handler()
         .build()
         .dispatch()

@@ -3,10 +3,14 @@
 //! This module implements the telegram bot command handling functionality.
 //! It processes user commands and manages interactions with the Llama AI model.
 use crate::{storage::Storage, system};
-use std::{collections::HashSet, sync::Arc};
 use dashmap::DashSet;
-use teloxide::{prelude::*, types::Message, utils::command::BotCommands, Bot};
-use tokio::sync::Mutex;
+use std::sync::Arc;
+use teloxide::{
+    prelude::*,
+    types::{ChatAction, Message},
+    utils::command::BotCommands,
+    Bot,
+};
 
 pub type BusySet = Arc<DashSet<i64>>;
 
@@ -44,6 +48,30 @@ pub enum Command {
     Stop,
 }
 
+pub async fn handle_ai_request(
+    bot: Bot,
+    chat_id: ChatId,
+    text: String,
+    storage: Arc<dyn Storage>,
+    busy: BusySet,
+) {
+    if !busy.insert(chat_id.0) {
+        let _ = bot.send_message(chat_id, "⏳ Please wait...").await;
+        return;
+    }
+
+    let typing = bot.send_chat_action(chat_id, ChatAction::Typing);
+    let req = system::reqwest_ai(text, chat_id.0, storage);
+
+    let (_, result) = tokio::join!(typing, req);
+
+    for chunk in result {
+        let _ = bot.send_message(chat_id, chunk).await;
+    }
+
+    busy.remove(&chat_id.0);
+}
+
 /// Main command handler function
 ///
 /// Processes incoming bot commands and returns appropriate responses
@@ -60,7 +88,7 @@ pub async fn answer(
     bot: Bot,
     msg: Message,
     command: Command,
-    senders: Arc<Mutex<HashSet<i64>>>,
+    busy: BusySet,
     storage: Arc<dyn Storage>,
 ) -> ResponseResult<()> {
     match command {
@@ -73,34 +101,14 @@ pub async fn answer(
                 .await?;
         }
         Command::Chat(text) => {
-            if senders.lock().await.contains(&msg.chat.id.0) {
-                bot.send_message(msg.chat.id, "Please wait...").await?;
-                bot.send_chat_action(msg.chat.id, teloxide::types::ChatAction::Typing)
-                    .await?;
-            } else {
-                senders.lock().await.insert(msg.chat.id.0);
-                let bot_clone = bot.clone();
-                let chat_id = msg.chat.id;
-                let senders_clone = senders.clone();
-                let storage_clone = storage.clone();
-                bot.send_chat_action(msg.chat.id, teloxide::types::ChatAction::Typing)
-                    .await?;
+            let chat_id = msg.chat.id;
+            let bot_clone = bot.clone();
+            let storage_clone = storage.clone();
+            let busy_clone = busy.clone();
 
-                tokio::spawn(async move {
-                    let answer = system::reqwest_ai(text, chat_id.0, storage_clone).await;
-
-                    for ans in answer {
-                        if let Err(e) = bot_clone
-                            // .parse_mode(teloxide::types::ParseMode::Markdown)
-                            .send_message(chat_id, ans)
-                            .await
-                        {
-                            println!("Failed to send message: {}", e);
-                        }
-                    }
-                    senders_clone.lock().await.remove(&chat_id.0);
-                });
-            }
+            tokio::spawn(async move {
+                handle_ai_request(bot_clone, chat_id, text, storage_clone, busy_clone).await;
+            });
         }
         Command::System(fingerprint) => {
             storage
@@ -144,47 +152,19 @@ pub async fn answer(
 pub async fn message_handler(
     bot: Bot,
     msg: Message,
-    senders: Arc<Mutex<HashSet<i64>>>,
+    busy: BusySet,
     storage: Arc<dyn Storage>,
 ) -> ResponseResult<()> {
     if let Some(text) = msg.text() {
-        let mut locked_senders = senders.lock().await;
+        let chat_id = msg.chat.id;
+        let bot_clone = bot.clone();
+        let text = text.to_string();
+        let storage_clone = storage.clone();
+        let busy_clone = busy.clone();
 
-        if locked_senders.contains(&msg.chat.id.0) {
-            drop(locked_senders);
-
-            bot.send_message(msg.chat.id, "Please wait...").await?;
-            bot.send_chat_action(msg.chat.id, teloxide::types::ChatAction::Typing)
-                .await?;
-        } else {
-            locked_senders.insert(msg.chat.id.0);
-
-            drop(locked_senders);
-
-            let bot_clone = bot.clone();
-            let chat_id = msg.chat.id;
-            let senders_clone = senders.clone();
-            let text = text.to_string();
-            let storage_clone = storage.clone();
-
-            bot.send_chat_action(msg.chat.id, teloxide::types::ChatAction::Typing)
-                .await?;
-
-            tokio::spawn(async move {
-                let answer = system::reqwest_ai(text, chat_id.0, storage_clone).await;
-                for ans in answer {
-                    if let Err(e) = bot_clone
-                        // .parse_mode(teloxide::types::ParseMode::Markdown)
-                        .send_message(chat_id, ans)
-                        .await
-                    {
-                        println!("Failed to send message: {}", e);
-                    }
-                }
-
-                senders_clone.lock().await.remove(&chat_id.0);
-            });
-        }
+        tokio::spawn(async move {
+            handle_ai_request(bot_clone, chat_id, text, storage_clone, busy_clone).await;
+        });
     } else {
         invalid(bot, msg).await?
     }
