@@ -24,7 +24,6 @@ impl MemoryStorage {
     }
 }
 
-
 // Реализация трейта для MemoryStorage
 #[async_trait]
 impl Storage for MemoryStorage {

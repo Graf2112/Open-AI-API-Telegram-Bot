@@ -1,4 +1,4 @@
-use handler::{answer, invalid, message_handler, Command};
+use handler::{answer, inline_handler, invalid, message_handler, Command};
 use teloxide::{
     dispatching::{HandlerExt, UpdateFilterExt},
     dptree::{self, Handler},
@@ -20,5 +20,6 @@ pub fn get_storage_handler() -> Handler<
                 .branch(dptree::entry().filter_command::<Command>().endpoint(answer)),
         )
         .branch(Update::filter_message().endpoint(message_handler))
+        .branch(Update::filter_inline_query().endpoint(inline_handler))
         .branch(Update::filter_message().endpoint(invalid))
 }

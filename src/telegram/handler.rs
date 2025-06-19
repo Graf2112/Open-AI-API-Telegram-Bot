@@ -155,22 +155,29 @@ pub async fn message_handler(
     busy: BusySet,
     storage: Arc<dyn Storage>,
 ) -> ResponseResult<()> {
-    if let Some(text) = msg.text() {
-        let chat_id = msg.chat.id;
-        let bot_clone = bot.clone();
-        let text = text.to_string();
-        let storage_clone = storage.clone();
-        let busy_clone = busy.clone();
+    if !msg.chat.is_group() {
+        if let Some(text) = msg.text() {
+            let chat_id = msg.chat.id;
+            let bot_clone = bot.clone();
+            let text = text.to_string();
+            let storage_clone = storage.clone();
+            let busy_clone = busy.clone();
 
-        tokio::spawn(async move {
-            handle_ai_request(bot_clone, chat_id, text, storage_clone, busy_clone).await;
-        });
-    } else {
-        invalid(bot, msg).await?
+            tokio::spawn(async move {
+                handle_ai_request(bot_clone, chat_id, text, storage_clone, busy_clone).await;
+            });
+        } else {
+            invalid(bot, msg).await?
+        }
     }
 
     Ok(())
 }
+
+pub async fn inline_handler() -> ResponseResult<()> {
+    Ok(())
+}
+
 /// Invalid command handler
 ///
 /// Responds to unrecognized bot commands

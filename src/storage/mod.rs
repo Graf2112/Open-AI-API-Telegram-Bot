@@ -5,9 +5,12 @@ use async_trait::async_trait;
 mod db_storage;
 mod memory_storage;
 
-
-use crate::{db, lm_types::Message, storage::{db_storage::DbStorage, memory_storage::MemoryStorage}, CONFIG};
-
+use crate::{
+    db,
+    lm_types::Message,
+    storage::{db_storage::DbStorage, memory_storage::MemoryStorage},
+    CONFIG,
+};
 
 #[async_trait]
 pub trait Storage: Send + Sync {
@@ -41,7 +44,3 @@ pub async fn create_storage() -> Arc<dyn Storage> {
         Arc::new(MemoryStorage::new())
     }
 }
-
-
-
-

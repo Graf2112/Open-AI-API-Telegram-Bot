@@ -10,8 +10,6 @@ pub struct DbStorage {
     db: Arc<Pool<Sqlite>>,
 }
 
-
-
 impl DbStorage {
     pub async fn new() -> Self {
         let db = db::sqlite::init_db().await;
@@ -22,7 +20,6 @@ impl DbStorage {
         }
     }
 }
-
 
 // Реализация трейта для DbStorage
 #[async_trait]
