@@ -39,11 +39,7 @@ pub fn get_config() -> Result<Config, ConfigError> {
 ///
 /// # Returns
 /// * `String` - AI model response or error message
-pub async fn reqwest_ai(
-    context: String,
-    user_id: i64,
-    storage: Arc<dyn Storage>,
-) -> Vec<String> {
+pub async fn reqwest_ai(context: String, user_id: i64, storage: Arc<dyn Storage>) -> Vec<String> {
     let client = Client::new();
     let url = CONFIG.get_string("url").unwrap_or(String::new());
 

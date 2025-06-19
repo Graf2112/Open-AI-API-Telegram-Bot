@@ -1,12 +1,8 @@
-pub mod conversation;
-pub mod fingerprint;
-pub mod temperature;
-
+use dashmap::DashMap;
 use sqlx::{query, Executor, Pool, Sqlite};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use tokio::sync::Mutex;
 
 use crate::{db, lm_types::Message, CONFIG};
 
@@ -43,20 +39,27 @@ pub async fn create_storage() -> Arc<dyn Storage> {
     }
 }
 
-
 // Реализации хранилищ
 struct MemoryStorage {
+    context: DashMap<i64, Vec<Message>>,
+    fingerprint: DashMap<i64, String>,
+    temperature: DashMap<i64, f32>,
+    max_conv_len: usize,
 }
 
 struct DbStorage {
     // Структура для работы с БД
-    db: Arc<Mutex<Pool<Sqlite>>>,
+    db: Arc<Pool<Sqlite>>,
 }
 
 impl MemoryStorage {
     fn new() -> Self {
         Self {
             // Инициализация структуры
+            context: DashMap::with_capacity(100),
+            fingerprint: DashMap::with_capacity(100),
+            temperature: DashMap::with_capacity(100),
+            max_conv_len: CONFIG.get("max_conversation_len").unwrap_or(20),
         }
     }
 }
@@ -65,9 +68,7 @@ impl DbStorage {
     async fn new() -> Self {
         let db = db::sqlite::init_db().await;
         if let Ok(db) = db {
-            Self {
-                db: Arc::new(Mutex::new(db)),
-            }
+            Self { db: Arc::new(db) }
         } else {
             panic!("Failed to initialize database: {:?}", db.err());
         }
@@ -79,31 +80,45 @@ impl DbStorage {
 impl Storage for MemoryStorage {
     // Реализация методов с использованием текущей логики хранения в памяти
     async fn get_conversation_context(&self, user_id: i64) -> Vec<Message> {
-        conversation::get_history(user_id).await
+        self.context
+            .get(&user_id)
+            .map(|entry| entry.clone())
+            .unwrap_or_default()
     }
 
     async fn set_conversation_context(&self, user_id: i64, context: Message) {
-        conversation::update_or_insert_history(user_id, context).await
+        self.context
+            .entry(user_id)
+            .and_modify(|history| {
+                history.push(context.clone());
+                if history.len() > self.max_conv_len {
+                    history.drain(..history.len() - self.max_conv_len);
+                }
+            })
+            .or_insert_with(|| vec![context]);
     }
 
     async fn clear_conversation_context(&self, user_id: i64) {
-        conversation::clear_conversation_context(user_id).await
+        self.context.remove(&user_id);
     }
 
     async fn get_system_fingerprint(&self, user_id: i64) -> String {
-        fingerprint::get_system_fingerprint(user_id).await
+        self.fingerprint
+            .get(&user_id)
+            .map(|v| v.clone())
+            .unwrap_or_default()
     }
 
     async fn set_system_fingerprint(&self, user_id: i64, fingerprint: String) {
-        fingerprint::set_system_fingerprint(user_id, fingerprint).await
+        self.fingerprint.insert(user_id, fingerprint);
     }
 
     async fn get_temperature(&self, user_id: i64) -> f32 {
-        temperature::get_temperature(user_id).await
+        self.temperature.get(&user_id).map(|v| *v).unwrap_or(0.7)
     }
 
     async fn set_temperature(&self, user_id: i64, temperature: f32) {
-        temperature::set_temperature(user_id, temperature).await
+        self.temperature.insert(user_id, temperature);
     }
 }
 
@@ -112,9 +127,8 @@ impl Storage for MemoryStorage {
 impl Storage for DbStorage {
     // Реализация методов с использованием БД
     async fn get_conversation_context(&self, user_id: i64) -> Vec<Message> {
-        let db = self.db.lock().await;
         let qr = query!("SELECT context_len FROM users WHERE user_id = $1", user_id)
-            .fetch_one(&*db)
+            .fetch_one(&*self.db)
             .await;
 
         let max_conversation_len = CONFIG.get("max_conversation_len").unwrap_or(20);
@@ -129,7 +143,7 @@ impl Storage for DbStorage {
                     "SELECT message, responder FROM context WHERE user_id = $1 ORDER BY id DESC LIMIT $2",
                     user_id,
                     len
-                ).fetch_all(&*db).await;
+                ).fetch_all(&*self.db).await;
                 if let Ok(rows) = qr {
                     let mut messages = Vec::new();
                     for row in rows {
@@ -148,51 +162,51 @@ impl Storage for DbStorage {
     }
 
     async fn set_conversation_context(&self, chat_id: i64, context: Message) {
-        let db = self.db.lock().await;
         println!(
             "Set conversation 1: {:?}",
-            db.execute(query!(
-                "INSERT INTO context (user_id, message, responder) VALUES ($1, $2, $3)",
-                chat_id,
-                context.content,
-                context.role
-            ))
-            .await
+            self.db
+                .execute(query!(
+                    "INSERT INTO context (user_id, message, responder) VALUES ($1, $2, $3)",
+                    chat_id,
+                    context.content,
+                    context.role
+                ))
+                .await
         );
         println!(
             "Update user context_len: {:?}",
-            db.execute(query!(
-                "INSERT INTO users (user_id, context_len) 
+            self.db
+                .execute(query!(
+                    "INSERT INTO users (user_id, context_len) 
                 VALUES ($1, 0) 
             ON CONFLICT(user_id)
             DO UPDATE SET context_len = context_len + 1 WHERE user_id = $1",
-                chat_id
-            ))
-            .await
+                    chat_id
+                ))
+                .await
         );
     }
 
     async fn clear_conversation_context(&self, chat_id: i64) {
-        let db = self.db.lock().await;
         println!(
             "clear_conversation: {:?}",
-            db.execute(query!(
-                "INSERT INTO users (user_id, context_len) 
+            self.db
+                .execute(query!(
+                    "INSERT INTO users (user_id, context_len) 
                 VALUES ($1, $2) 
             ON CONFLICT(user_id) 
                 DO UPDATE SET context_len = 0 
                 WHERE user_id = $1",
-                chat_id,
-                0
-            ))
-            .await
+                    chat_id,
+                    0
+                ))
+                .await
         );
     }
 
     async fn get_system_fingerprint(&self, chat_id: i64) -> String {
-        let db = self.db.lock().await;
         let qr = query!("SELECT system FROM users WHERE user_id = $1", chat_id)
-            .fetch_one(&*db)
+            .fetch_one(&*self.db)
             .await;
         if let Ok(row) = qr {
             return row.system.unwrap_or("".to_string());
@@ -202,26 +216,25 @@ impl Storage for DbStorage {
     }
 
     async fn set_system_fingerprint(&self, chat_id: i64, fingerprint: String) {
-        let db = self.db.lock().await;
         println!(
             "set_sestem_fingerprint: {:?}",
-            db.execute(query!(
-                "INSERT INTO users(user_id, system, context_len) 
+            self.db
+                .execute(query!(
+                    "INSERT INTO users(user_id, system, context_len) 
                 VALUES ($1, $2, 0) 
             ON CONFLICT(user_id) 
                 DO UPDATE SET system = $2 
                 WHERE user_id = $1",
-                chat_id,
-                fingerprint
-            ))
-            .await
+                    chat_id,
+                    fingerprint
+                ))
+                .await
         );
     }
 
     async fn get_temperature(&self, chat_id: i64) -> f32 {
-        let db = self.db.lock().await;
         let qr = query!("SELECT temperature FROM users WHERE user_id = $1", chat_id)
-            .fetch_one(&*db)
+            .fetch_one(&*self.db)
             .await;
         if let Ok(row) = qr {
             return row.temperature.unwrap_or(0.7) as f32;
@@ -231,19 +244,19 @@ impl Storage for DbStorage {
     }
 
     async fn set_temperature(&self, chat_id: i64, temperature: f32) {
-        let db = self.db.lock().await;
         println!(
             "Set_temperature: {:?}",
-            db.execute(query!(
-                "INSERT INTO users(user_id, temperature, context_len) 
+            self.db
+                .execute(query!(
+                    "INSERT INTO users(user_id, temperature, context_len) 
                 VALUES ($1, $2, 0) 
             ON CONFLICT(user_id) 
                 DO UPDATE SET temperature = $2 
                 WHERE user_id = $1",
-                chat_id,
-                temperature
-            ))
-            .await
+                    chat_id,
+                    temperature
+                ))
+                .await
         );
     }
 }

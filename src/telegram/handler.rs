@@ -4,8 +4,11 @@
 //! It processes user commands and manages interactions with the Llama AI model.
 use crate::{storage::Storage, system};
 use std::{collections::HashSet, sync::Arc};
+use dashmap::DashSet;
 use teloxide::{prelude::*, types::Message, utils::command::BotCommands, Bot};
 use tokio::sync::Mutex;
+
+pub type BusySet = Arc<DashSet<i64>>;
 
 /// Bot commands enumeration
 ///
@@ -113,15 +116,11 @@ pub async fn answer(
                 temperature = 0.7;
             }
 
-            storage
-                .set_temperature(msg.chat.id.0, temperature)
-                .await;
+            storage.set_temperature(msg.chat.id.0, temperature).await;
             bot.send_message(msg.chat.id, "Temperature set").await?;
         }
         Command::Clear => {
-            storage
-                .clear_conversation_context(msg.chat.id.0)
-                .await;
+            storage.clear_conversation_context(msg.chat.id.0).await;
             bot.send_message(msg.chat.id, "Conversation cleared")
                 .await?;
         }
