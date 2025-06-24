@@ -1,4 +1,5 @@
 use sqlx::{migrate::MigrateDatabase, Error, Pool, Sqlite, SqlitePool};
+use tracing::{event, Level};
 
 pub async fn init_db() -> Result<Pool<Sqlite>, Error> {
     if !Sqlite::database_exists("db.sqlite").await.unwrap_or(false) {
@@ -7,7 +8,6 @@ pub async fn init_db() -> Result<Pool<Sqlite>, Error> {
 
     let db = SqlitePool::connect("db.sqlite").await;
     if let Ok(db) = db {
-        
         let query_res = sqlx::query(
             "CREATE TABLE IF NOT EXISTS context (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -21,7 +21,7 @@ pub async fn init_db() -> Result<Pool<Sqlite>, Error> {
         .await;
 
         if let Err(err) = query_res {
-            println!("Failed to create table 1: {:?}", err);
+            event!(Level::ERROR, "Failed to create table 1: {:?}", err);
             return Err(err);
         }
 
@@ -37,14 +37,14 @@ pub async fn init_db() -> Result<Pool<Sqlite>, Error> {
         .await;
 
         if let Err(err) = query_res {
-            println!("Failed to create table 2: {:?}", err);
+            event!(Level::ERROR, "Failed to create table 2: {:?}", err);
             return Err(err);
         }
 
         return Ok(db);
     } else {
         let err = db.err().unwrap();
-        println!("Failed to connect to database: {:?}", err);
+        event!(Level::ERROR, "Failed to connect to database: {:?}", err);
         return Err(err);
     }
 }

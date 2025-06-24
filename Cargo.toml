@@ -21,3 +21,5 @@ sqlx = { version = "=0.7.3", features = ["runtime-tokio", "sqlite"] }
 teloxide = { version = "=0.13", features = ["full"] }
 tokio = { version = "1.43.0", features = ["full"] }
 tracing = "0.1.41"
+tracing-appender = "0.2.3"
+tracing-subscriber = {version = "0.3.19", features = ["fmt", "env-filter"]}

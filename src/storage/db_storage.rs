@@ -1,5 +1,6 @@
 use sqlx::{query, Executor, Pool, Sqlite};
 use std::sync::Arc;
+use tracing::{event, Level};
 
 use async_trait::async_trait;
 
@@ -61,7 +62,8 @@ impl Storage for DbStorage {
     }
 
     async fn set_conversation_context(&self, chat_id: i64, context: Message) {
-        println!(
+        event!(
+            Level::INFO,
             "Set conversation 1: {:?}",
             self.db
                 .execute(query!(
@@ -72,7 +74,8 @@ impl Storage for DbStorage {
                 ))
                 .await
         );
-        println!(
+        event!(
+            Level::INFO,
             "Update user context_len: {:?}",
             self.db
                 .execute(query!(
@@ -87,7 +90,8 @@ impl Storage for DbStorage {
     }
 
     async fn clear_conversation_context(&self, chat_id: i64) {
-        println!(
+        event!(
+            Level::INFO,
             "clear_conversation: {:?}",
             self.db
                 .execute(query!(
@@ -115,7 +119,8 @@ impl Storage for DbStorage {
     }
 
     async fn set_system_fingerprint(&self, chat_id: i64, fingerprint: String) {
-        println!(
+        event!(
+            Level::INFO,
             "set_sestem_fingerprint: {:?}",
             self.db
                 .execute(query!(
@@ -143,7 +148,8 @@ impl Storage for DbStorage {
     }
 
     async fn set_temperature(&self, chat_id: i64, temperature: f32) {
-        println!(
+        event!(
+            Level::INFO,
             "Set_temperature: {:?}",
             self.db
                 .execute(query!(

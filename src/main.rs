@@ -16,6 +16,7 @@ mod lm_types;
 mod storage;
 mod system;
 mod telegram;
+mod logging;
 
 lazy_static! {
     /// Global configuration instance
@@ -35,7 +36,9 @@ pub type Error = Box<dyn std::error::Error + Send + Sync>;
 /// * `Result<(), Error>` - Success or error status of bot execution
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    event!(Level::TRACE, "Preconfigure...");
+    logging::setup_tracing();
+
+    event!(Level::INFO, "Preconfigure...");
 
     // Load bot token from configuration
     let token = CONFIG.get_string("token").unwrap_or(String::new());
@@ -43,8 +46,8 @@ async fn main() -> Result<(), Error> {
     // Initialize bot instance
     let bot = Bot::new(token);
 
-    println!("Starting bot...");
-    println!("GetMe status: {:?}", bot.get_me().await);
+    event!(Level::INFO, "Starting bot...");
+    event!(Level::INFO, "GetMe status: {:?}", bot.get_me().await);
 
     // Initialize default handler
     let handler = get_storage_handler();
@@ -64,7 +67,6 @@ async fn main() -> Result<(), Error> {
 
     Ok(())
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -109,13 +111,13 @@ mod tests {
     fn test_dashset_busy_initialization() {
         // Test that the busy DashSet can be created and used
         let busy: Arc<DashSet<i64>> = Arc::new(DashSet::new());
-        
+
         // Test basic operations
         assert!(busy.is_empty());
         busy.insert(123);
         assert!(busy.contains(&123));
         assert_eq!(busy.len(), 1);
-        
+
         busy.remove(&123);
         assert!(busy.is_empty());
     }
@@ -132,9 +134,7 @@ mod tests {
     #[test]
     fn test_handler_initialization() {
         // Test that handler can be retrieved without panicking
-        let result = std::panic::catch_unwind(|| {
-            get_storage_handler()
-        });
+        let result = std::panic::catch_unwind(|| get_storage_handler());
         assert!(result.is_ok(), "Handler initialization should not panic");
     }
 
@@ -150,20 +150,20 @@ mod tests {
     async fn test_main_function_components_initialization() {
         // Test that all main function components can be initialized
         // This tests the initialization path without running the full dispatcher
-        
+
         // Test token loading
         let token = CONFIG.get_string("token").unwrap_or(String::new());
         let _bot = Bot::new(token);
-        
+
         // Test handler initialization
         let _handler = get_storage_handler();
-        
+
         // Test storage initialization
         let _storage = storage::create_storage().await;
-        
+
         // Test busy set initialization
         let _busy: Arc<DashSet<i64>> = Arc::new(DashSet::new());
-        
+
         // If we reach here, all components initialized successfully
         assert!(true);
     }
@@ -174,12 +174,10 @@ mod tests {
         fn create_error() -> Error {
             "test error".into()
         }
-        
+
         let error = create_error();
         assert_eq!(error.to_string(), "test error");
     }
-
-    
 
     #[test]
     fn test_multiple_config_access() {
@@ -187,14 +185,16 @@ mod tests {
         let _first_access = &*CONFIG;
         let _second_access = &*CONFIG;
         let _third_access = &*CONFIG;
-        
+
         // Test concurrent access
-        let handles: Vec<_> = (0..10).map(|_| {
-            std::thread::spawn(|| {
-                let _config = &*CONFIG;
+        let handles: Vec<_> = (0..10)
+            .map(|_| {
+                std::thread::spawn(|| {
+                    let _config = &*CONFIG;
+                })
             })
-        }).collect();
-        
+            .collect();
+
         for handle in handles {
             handle.join().unwrap();
         }

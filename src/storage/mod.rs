@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use tracing::{event, Level};
 
 mod db_storage;
 mod memory_storage;
@@ -28,19 +29,22 @@ pub trait Storage: Send + Sync {
 // Factory method for creating the required storage
 pub async fn create_storage() -> Arc<dyn Storage> {
     if CONFIG.get_bool("enable_db").unwrap_or(false) {
-        println!("Initializing database…");
+        event!(Level::INFO, "Initializing database…");
         match db::sqlite::init_db().await {
             Ok(_) => {
-                println!("Running bot with database enabled.");
+                event!(Level::INFO, "Running bot with database enabled.");
                 Arc::new(DbStorage::new().await)
             }
             Err(e) => {
-                eprintln!("DB init error: {e}. Falling back to in‑memory.");
+                event!(
+                    Level::ERROR,
+                    "DB init error: {e}. Falling back to in‑memory."
+                );
                 Arc::new(MemoryStorage::new())
             }
         }
     } else {
-        println!("Running bot with in‑memory storage.");
+        event!(Level::INFO, "Running bot with in‑memory storage.");
         Arc::new(MemoryStorage::new())
     }
 }

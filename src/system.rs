@@ -9,6 +9,7 @@ use reqwest::{
     header::{self, HeaderMap},
     Client,
 };
+use tracing::{event, Level};
 
 use std::{path::Path, sync::Arc};
 
@@ -45,6 +46,7 @@ pub async fn reqwest_ai(context: String, user_id: i64, storage: Arc<dyn Storage>
 
     let model = CONFIG.get_string("model");
     if model.is_err() {
+        event!(Level::ERROR, "Model not found");
         return vec!["Model not found".to_string()];
     }
 
@@ -76,7 +78,7 @@ pub async fn reqwest_ai(context: String, user_id: i64, storage: Arc<dyn Storage>
     let mut header = HeaderMap::new();
     header.insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
 
-    print!("temperature: {}, system: {} ", temperature, fingerprint);
+    event!(Level::INFO, "temperature: {}, system: {} ", temperature, fingerprint);
 
     let body = serde_json::json!({
         "model": model.unwrap(),
@@ -86,7 +88,7 @@ pub async fn reqwest_ai(context: String, user_id: i64, storage: Arc<dyn Storage>
         "stream": false
     });
 
-    println!("{}: {}", chrono::Local::now(), "AI writing".green());
+    event!(Level::INFO, "{}: {}", chrono::Local::now(), "AI writing".green());
     let res = client.post(url).headers(header).json(&body).send().await;
 
     match res {
@@ -95,7 +97,7 @@ pub async fn reqwest_ai(context: String, user_id: i64, storage: Arc<dyn Storage>
             match text {
                 Ok(text) => {
                     // println!("Answer: {:?}", text);
-                    println!("{}: {}", chrono::Local::now(), "AI return answer.".green());
+                    event!(Level::INFO, "{}: {}", chrono::Local::now(), "AI return answer.".green());
 
                     storage
                         .set_conversation_context(user_id, text.choices[0].message.clone())
@@ -111,13 +113,13 @@ pub async fn reqwest_ai(context: String, user_id: i64, storage: Arc<dyn Storage>
                     ret_vec
                 }
                 Err(e) => {
-                    println!("{}{}", "Llama send wrong answer format: ".red(), e);
+                    event!(Level::INFO, "{}{}", "Llama send wrong answer format: ".red(), e);
                     vec![format!("Error with response: {}", e.to_string())]
                 }
             }
         }
         Err(e) => {
-            println!("{}{}", "Llama connection error: ".red(), e);
+            event!(Level::INFO, "{}{}", "Llama connection error: ".red(), e);
             vec![format!("Unable to connect: {}", e.to_string())]
         }
     }
