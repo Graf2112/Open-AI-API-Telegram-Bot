@@ -122,23 +122,3 @@ pub async fn reqwest_ai(context: String, user_id: i64, storage: Arc<dyn Storage>
         }
     }
 }
-
-#[allow(dead_code)]
-fn replace_escape_sequences(input: &str) -> String {
-    input
-        // .replace("*", "\\*")
-        .replace(".", "\\.")
-        .replace("-", "\\-")
-        // .replace(">", "\\>")
-        // .replace("_", "\\_")
-        .replace("/", "\\/")
-        .replace("^", "\\^")
-        .replace("=", "\\=")
-        .replace("!", "\\!")
-        .replace("|", "\\|")
-        .replace("#", "\\#")
-        .replace("(", "\\(")
-        .replace(")", "\\)")
-        .replace("{", "\\{")
-        .replace("}", "\\}")
-}

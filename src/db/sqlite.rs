@@ -7,6 +7,7 @@ pub async fn init_db() -> Result<Pool<Sqlite>, Error> {
 
     let db = SqlitePool::connect("db.sqlite").await;
     if let Ok(db) = db {
+        
         let query_res = sqlx::query(
             "CREATE TABLE IF NOT EXISTS context (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -23,6 +24,7 @@ pub async fn init_db() -> Result<Pool<Sqlite>, Error> {
             println!("Failed to create table 1: {:?}", err);
             return Err(err);
         }
+
         let query_res = sqlx::query(
             "CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY NOT NULL,
@@ -38,6 +40,7 @@ pub async fn init_db() -> Result<Pool<Sqlite>, Error> {
             println!("Failed to create table 2: {:?}", err);
             return Err(err);
         }
+
         return Ok(db);
     } else {
         let err = db.err().unwrap();

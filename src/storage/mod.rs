@@ -25,7 +25,7 @@ pub trait Storage: Send + Sync {
     async fn set_temperature(&self, chat_id: i64, temperature: f32);
 }
 
-// Фабричный метод для создания нужного хранилища
+// Factory method for creating the required storage
 pub async fn create_storage() -> Arc<dyn Storage> {
     if CONFIG.get_bool("enable_db").unwrap_or(false) {
         println!("Initializing database…");
