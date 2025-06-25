@@ -7,13 +7,13 @@ pub fn setup_tracing() {
 
     let stdout_layer = fmt::layer()
         .with_writer(std::io::stdout)
-        .with_target(false)
+        .with_target(true)
         .with_level(true);
 
     let file_layer = fmt::layer()
         .with_writer(file_writer)
         .with_ansi(false)
-        .with_target(false)
+        .with_target(true)
         .with_level(true);
 
     let filter = EnvFilter::try_from_default_env()
