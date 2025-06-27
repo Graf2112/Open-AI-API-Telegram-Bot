@@ -9,13 +9,15 @@ use crate::{db, lm_types::Message, storage::Storage, CONFIG};
 pub struct DbStorage {
     // Структура для работы с БД
     db: Arc<Pool<Sqlite>>,
+    max_conv_len: usize,
 }
 
 impl DbStorage {
     pub async fn new() -> Self {
         let db = db::sqlite::init_db().await;
         if let Ok(db) = db {
-            Self { db: Arc::new(db) }
+            Self { db: Arc::new(db),
+            max_conv_len: CONFIG.get("max_conversation_len").unwrap_or(20) }
         } else {
             panic!("Failed to initialize database: {:?}", db.err());
         }
@@ -31,7 +33,7 @@ impl Storage for DbStorage {
             .fetch_one(&*self.db)
             .await;
 
-        let max_conversation_len = CONFIG.get("max_conversation_len").unwrap_or(20);
+        let max_conversation_len = self.max_conv_len as i64;
         if let Ok(row) = qr {
             if row.context_len > 0 {
                 let len = if row.context_len > max_conversation_len {
