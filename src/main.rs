@@ -13,10 +13,10 @@ use tracing::{event, Level};
 
 mod db;
 mod lm_types;
+mod logging;
 mod storage;
 mod system;
 mod telegram;
-mod logging;
 
 lazy_static! {
     /// Global configuration instance

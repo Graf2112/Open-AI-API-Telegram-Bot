@@ -32,6 +32,7 @@ pub async fn handle_ai_request(
     text: String,
     storage: Arc<dyn Storage>,
     busy: BusySet,
+    is_maid: bool,
 ) {
     if !busy.insert(chat_id.0) {
         let _ = bot.send_message(chat_id, "⏳ Please wait...").await;
@@ -39,7 +40,8 @@ pub async fn handle_ai_request(
     }
 
     let typing = bot.send_chat_action(chat_id, ChatAction::Typing);
-    let req = system::reqwest_ai(text, chat_id.0, storage);
+
+    let req = system::reqwest_ai(text, chat_id.0, storage, is_maid);
 
     let (_, result) = tokio::join!(typing, req);
 

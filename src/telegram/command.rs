@@ -73,9 +73,17 @@ pub async fn command_handler(
             let storage_clone = storage.clone();
             let busy_clone = busy.clone();
 
-            tokio::spawn(async move {
-                handle_ai_request(bot_clone, chat_id, text, storage_clone, busy_clone).await;
-            });
+            if msg.chat.is_channel() || msg.chat.is_group() || msg.chat.is_supergroup() {
+                tokio::spawn(async move {
+                    handle_ai_request(bot_clone, chat_id, text, storage_clone, busy_clone, true)
+                        .await;
+                });
+            } else {
+                tokio::spawn(async move {
+                    handle_ai_request(bot_clone, chat_id, text, storage_clone, busy_clone, false)
+                        .await;
+                });
+            }
         }
         Command::System(fingerprint) => {
             storage

@@ -34,7 +34,7 @@ pub async fn message_handler(
             let busy_clone = busy.clone();
 
             tokio::spawn(async move {
-                handle_ai_request(bot_clone, chat_id, text, storage_clone, busy_clone).await;
+                handle_ai_request(bot_clone, chat_id, text, storage_clone, busy_clone, false).await;
             });
         } else {
             invalid(bot, msg).await?

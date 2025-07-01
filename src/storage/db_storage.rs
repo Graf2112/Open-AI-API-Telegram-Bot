@@ -16,8 +16,10 @@ impl DbStorage {
     pub async fn new() -> Self {
         let db = db::sqlite::init_db().await;
         if let Ok(db) = db {
-            Self { db: Arc::new(db),
-            max_conv_len: CONFIG.get("max_conversation_len").unwrap_or(20) }
+            Self {
+                db: Arc::new(db),
+                max_conv_len: CONFIG.get("max_conversation_len").unwrap_or(20),
+            }
         } else {
             panic!("Failed to initialize database: {:?}", db.err());
         }
