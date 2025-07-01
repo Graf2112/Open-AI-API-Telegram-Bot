@@ -25,7 +25,7 @@ pub async fn message_handler(
     busy: BusySet,
     storage: Arc<dyn Storage>,
 ) -> ResponseResult<()> {
-    if !msg.chat.is_group() {
+    if !msg.chat.is_group() && !msg.chat.is_channel() && !msg.chat.is_supergroup() {
         if let Some(text) = msg.text() {
             let chat_id = msg.chat.id;
             let bot_clone = bot.clone();
