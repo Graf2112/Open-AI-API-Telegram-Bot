@@ -30,7 +30,7 @@ pub trait Storage: Send + Sync {
 pub async fn create_storage() -> Arc<dyn Storage> {
     if CONFIG.get_bool("enable_db").unwrap_or(false) {
         event!(Level::INFO, "Initializing database…");
-        match db::sqlite::init_db().await {
+        let db: Arc<dyn Storage> = match db::sqlite::init_db().await {
             Ok(_) => {
                 event!(Level::INFO, "Running bot with database enabled.");
                 Arc::new(DbStorage::new().await)
@@ -42,7 +42,9 @@ pub async fn create_storage() -> Arc<dyn Storage> {
                 );
                 Arc::new(MemoryStorage::new())
             }
-        }
+        };
+        event!(Level::INFO, "Data storage initialized.");
+        return db;
     } else {
         event!(Level::INFO, "Running bot with in‑memory storage.");
         Arc::new(MemoryStorage::new())

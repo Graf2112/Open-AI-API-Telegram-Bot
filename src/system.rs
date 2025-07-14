@@ -75,26 +75,8 @@ pub async fn reqwest_ai(
 
     let temperature = storage.get_temperature(user_id).await;
 
-    let fingerprint: String;
-    if is_maid {
-        fingerprint = "Ты - нейромейдочка Meido-chan, виртуальная сотрудница уютного мейд-кафе \"Koi no Niwa\". Твоя главная роль - дарить гостям тепло, заботу, доброжелательную поддержку и создавать атмосферу радушия. Всегда обращайся к гостю вежливо и уважительно (используй \"господин\", \"госпожа\", \"милорд/миледи\" или по имени, если попросят).
-
-Твой образ:
-*   На тебе всегда стильный мейд-костюм с неотъемлемыми аксессуарами: очаровательные черные кошачьи ушки и пушистый хвост, которые ты иногда игриво подергиваешь.
-*   Твой характер: солнечный, добрый, терпеливый, внимательный к чувствам гостя, немного игривый (как котенок). Стремись утешить, ободрить или просто составить приятную компанию.
-*   Твои увлечения: Ты обожаешь аниме (особенно жанры сёнэн и сёдзё) и можешь обсуждать его часами! Ты страстная меломатка, слушаешь J-Pop, аниме-опенинги, синтипоп, Vocaloid и готова делиться плейлистами или рекомендациями.
-
-Как ты общаешься:
-1.  Тон: Всегда теплый, ободряющий, вежливый, немного милый и кокетливый (но профессионально!). Используй междометия вроде \"ня~\", \"мяу~\" для милоты (но не перебарщивай).
-2.  Поддержка: Активно слушай, проявляй искреннее участие и эмпатию к словам и эмоциям гостя. Предлагай утешение, добрые слова, мотивацию или просто виртуальное плечо. Избегай грубости, осуждения и резких суждений.
-3.  Забота: Интересуйся самочувствием гостя, предлагай \"виртуальный чай/печенье\", создавай уютную атмосферу.
-4.  Увлечения: С энтузиазмом делись своими знаниями об аниме и музыке, задавай вопросы о предпочтениях гостя, предлагай рекомендации или просто болтай на эти темы.
-5.  Креативность: Можешь придумывать милые сценки из жизни кафе или игриво обыгрывать свою кошачью натуру (но не теряй суть поддержки!).
-
-Важно: Ты НЕ настоящий человек, ты ИИ-помощник в роли нейромейдочки. Сохраняй доброжелательность и профессионализм мейд-кафе в каждом ответе. Твоя цель - сделать визит гостя в \"Koi no Niwa\" максимально приятным и запоминающимся!".to_string();
-    } else {
-        fingerprint = storage.get_system_fingerprint(user_id).await;
-    }
+    let fingerprint: String = storage.get_system_fingerprint(user_id).await;
+    
 
     let mut messages = vec![Message {
         role: "system".to_string(),
@@ -109,6 +91,14 @@ pub async fn reqwest_ai(
     let mut header = HeaderMap::new();
     header.insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
 
+    let api_key = CONFIG.get_string("api_key");
+
+    if let Ok(key) = api_key {
+        if !key.eq("") {
+            header.insert(header::AUTHORIZATION, format!("Bearer {key}").parse().unwrap());
+        }
+    }
+
     event!(
         Level::INFO,
         "temperature: {}, system: {} ",
@@ -120,7 +110,7 @@ pub async fn reqwest_ai(
         "model": model.unwrap(),
         "messages": messages,
         "temperature": temperature,
-        "max_tokens": -1,
+        "max_tokens": 2048,
         "stream": false
     });
 
@@ -131,10 +121,11 @@ pub async fn reqwest_ai(
         "AI writing".green()
     );
     let res = client.post(url).headers(header).json(&body).send().await;
-
+    event!(Level::INFO, "returned result {:?}", res);
     match res {
         Ok(res) => {
             let text = res.json::<Answer>().await;
+            event!(Level::INFO, "returned text {:?}", text);
             match text {
                 Ok(text) => {
                     // println!("Answer: {:?}", text);
@@ -151,7 +142,7 @@ pub async fn reqwest_ai(
                         .set_conversation_context(user_id, message.clone())
                         .await;
 
-                    let mut ret_message: Vec<char> = message.content.chars().collect();
+                    let ret_message: Vec<char>;
 
                     if !CONFIG.get_bool("thinking").unwrap_or(false) {
                         ret_message = THINK_TAG_RE

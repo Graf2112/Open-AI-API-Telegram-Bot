@@ -3,3 +3,5 @@ url="YOUR_URL" # URL to your LM like http://26.138.102.105:11434/v1/chat/complet
 model="MODEL_NAME" #Model name from https://huggingface.co/models?sort=downloads
 enable_db=false #If true - use sqlite database to store messages, if false - use in-memory storage (Work in progress)
 max_conversation_len=50
+reasoning=false
+api_key=""

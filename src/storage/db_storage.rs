@@ -14,12 +14,16 @@ pub struct DbStorage {
 
 impl DbStorage {
     pub async fn new() -> Self {
+        event!(Level::INFO, "Trying to init_db...");
         let db = db::sqlite::init_db().await;
+        event!(Level::INFO, "init_db succeed!");
         if let Ok(db) = db {
-            Self {
+            let db = Self {
                 db: Arc::new(db),
                 max_conv_len: CONFIG.get("max_conversation_len").unwrap_or(20),
-            }
+            };
+            event!(Level::INFO, "init_db return self!");
+            return db;
         } else {
             panic!("Failed to initialize database: {:?}", db.err());
         }

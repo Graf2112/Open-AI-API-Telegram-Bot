@@ -55,8 +55,10 @@ async fn main() -> Result<(), Error> {
     // Initialize storage
     let storage = storage::create_storage().await;
 
+    event!(Level::INFO, "Storage configured. DashSet initializing.");
     let busy: Arc<DashSet<i64>> = Arc::new(DashSet::new());
 
+    event!(Level::INFO, "Dash set ready. Running dispatcher.");
     // Start the dispatcher with configured dependencies
     Dispatcher::builder(bot, handler)
         .dependencies(dptree::deps![storage, busy])
