@@ -3,7 +3,6 @@ use message::{invalid, message_handler};
 use teloxide::{
     dispatching::{HandlerExt, UpdateFilterExt},
     dptree::{self, Handler},
-    prelude::DependencyMap,
     types::Update,
 };
 
