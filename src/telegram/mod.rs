@@ -16,7 +16,6 @@ mod message;
 
 pub fn get_storage_handler() -> Handler<
     'static,
-    DependencyMap,
     Result<(), teloxide::RequestError>,
     teloxide::dispatching::DpHandlerDescription,
 > {
