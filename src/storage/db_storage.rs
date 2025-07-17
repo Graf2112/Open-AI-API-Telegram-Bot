@@ -4,7 +4,7 @@ use tracing::{event, Level};
 
 use async_trait::async_trait;
 
-use crate::{db, lm_types::Message, storage::Storage, CONFIG};
+use crate::{db, lm_types::Message, storage::Storage, Error, CONFIG};
 
 pub struct DbStorage {
     // Структура для работы с БД
@@ -13,7 +13,7 @@ pub struct DbStorage {
 }
 
 impl DbStorage {
-    pub async fn new() -> Self {
+    pub async fn new() -> Result<Self, Error> {
         event!(Level::INFO, "Trying to init_db...");
         let db = db::sqlite::init_db().await;
         event!(Level::INFO, "init_db succeed!");
@@ -23,7 +23,7 @@ impl DbStorage {
                 max_conv_len: CONFIG.get("max_conversation_len").unwrap_or(20),
             };
             event!(Level::INFO, "init_db return self!");
-            return db;
+            return Ok(db);
         } else {
             panic!("Failed to initialize database: {:?}", db.err());
         }
@@ -88,7 +88,7 @@ impl Storage for DbStorage {
             self.db
                 .execute(query!(
                     "INSERT INTO users (user_id, context_len) 
-                VALUES ($1, 0) 
+                VALUES ($1, 1) 
             ON CONFLICT(user_id)
             DO UPDATE SET context_len = context_len + 1 WHERE user_id = $1",
                     chat_id

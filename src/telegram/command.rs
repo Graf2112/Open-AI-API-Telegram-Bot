@@ -75,12 +75,12 @@ pub async fn command_handler(
 
             if msg.chat.is_channel() || msg.chat.is_group() || msg.chat.is_supergroup() {
                 tokio::spawn(async move {
-                    handle_ai_request(bot_clone, chat_id, text, storage_clone, busy_clone, true)
+                    handle_ai_request(bot_clone, chat_id, text, storage_clone, busy_clone)
                         .await;
                 });
             } else {
                 tokio::spawn(async move {
-                    handle_ai_request(bot_clone, chat_id, text, storage_clone, busy_clone, false)
+                    handle_ai_request(bot_clone, chat_id, text, storage_clone, busy_clone)
                         .await;
                 });
             }

@@ -2,7 +2,6 @@
 //!
 //! Handles communication with the Llama AI model API and configuration management.
 //! Implements request/response structures and message handling functionality.
-use colored::Colorize;
 use config::{Config, ConfigError, File, FileFormat};
 
 use reqwest::{
@@ -49,133 +48,146 @@ pub async fn reqwest_ai(
     context: String,
     user_id: i64,
     storage: Arc<dyn Storage>,
-    is_maid: bool,
 ) -> Vec<String> {
-    let client = Client::new();
-    let url = CONFIG.get_string("url").unwrap_or(String::new());
+    // Get configuration values with proper error handling
+    let model = match CONFIG.get_string("model") {
+        Ok(model) => model,
+        Err(e) => {
+            event!(Level::ERROR, "Configuration error: {}", e);
+            return vec!["⚠️ Configuration error: Model not set".to_string()];
+        }
+    };
 
-    let model = CONFIG.get_string("model");
-    if model.is_err() {
-        event!(Level::ERROR, "Model not found");
-        return vec!["Model not found".to_string()];
-    }
+    let url = CONFIG.get_string("url").unwrap_or_else(|_| {
+        event!(Level::WARN, "Using default API URL");
+        "http://localhost:8080/v1/chat/completions".to_string()
+    });
 
-    // Get or create conversation history for user
-    // And add user message to history
-    storage
-        .set_conversation_context(
-            user_id,
-            Message {
-                role: "user".to_string(),
-                content: context.clone(),
-                reasoning: None,
-            },
-        )
-        .await;
+    // Add user message to conversation history
+    storage.set_conversation_context(
+        user_id,
+        Message {
+            role: "user".to_string(),
+            content: context.clone(),
+            reasoning: None,
+        },
+    )
+    .await;
 
+    // Prepare system context
+    let fingerprint = storage.get_system_fingerprint(user_id).await;
     let temperature = storage.get_temperature(user_id).await;
 
-    let fingerprint: String = storage.get_system_fingerprint(user_id).await;
-    
+    event!(
+        Level::DEBUG,
+        "System context: temp={}, fingerprint={}",
+        temperature,
+        fingerprint
+    );
 
+    // Build request headers
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
+    
+    if let Ok(api_key) = CONFIG.get_string("api_key") {
+        if !api_key.is_empty() {
+            headers.insert(
+                header::AUTHORIZATION,
+                format!("Bearer {}", api_key).parse().unwrap(),
+            );
+        }
+    }
+
+    // Build message history
     let mut messages = vec![Message {
         role: "system".to_string(),
         content: fingerprint.clone(),
         reasoning: None,
     }];
 
-    if !is_maid {
-        messages.extend(storage.get_conversation_context(user_id).await);
-    }
+    
+    messages.extend(storage.get_conversation_context(user_id).await);
+    
 
-    let mut header = HeaderMap::new();
-    header.insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
-
-    let api_key = CONFIG.get_string("api_key");
-
-    if let Ok(key) = api_key {
-        if !key.eq("") {
-            header.insert(header::AUTHORIZATION, format!("Bearer {key}").parse().unwrap());
-        }
-    }
-
-    event!(
-        Level::INFO,
-        "temperature: {}, system: {} ",
-        temperature,
-        fingerprint
-    );
-
+    // Prepare request body
     let body = serde_json::json!({
-        "model": model.unwrap(),
+        "model": model,
         "messages": messages,
         "temperature": temperature,
         "max_tokens": 2048,
         "stream": false
     });
 
+    event!(Level::DEBUG, "Request body: {}", body.to_string());
+
+    // Send request to AI service
+    let client = Client::new();
+    event!(Level::INFO, "Sending request to AI service");
+    
+    let response = match client.post(&url)
+        .headers(headers)
+        .json(&body)
+        .send()
+        .await
+    {
+        Ok(res) => res,
+        Err(e) => {
+            event!(Level::ERROR, "AI connection error: {}", e);
+            return vec![format!("🔌 Connection error: {}", e)];
+        }
+    };
+
+    // Process response
+    let answer: Answer = match response.json().await {
+        Ok(answer) => answer,
+        Err(e) => {
+            event!(Level::ERROR, "Invalid response format: {}", e);
+            return vec!["❌ Invalid response from AI service".to_string()];
+        }
+    };
+
+    event!(Level::INFO, "Received response from AI service");
+
+    // Extract and clean AI response
+    let ai_message = &answer.choices[0].message;
+    let content = ai_message.content.as_str();
+
+    // Apply thinking tag filter if configured
+    let ret_message: Vec<char>;
+
+    if !CONFIG.get_bool("thinking").unwrap_or(false) {
+        ret_message = THINK_TAG_RE
+            .replace_all(&content, "")
+            .chars()
+            .collect();
+    } else {
+        ret_message = content.chars().collect();
+    }
+
+    // Save AI response to conversation history
+    storage
+        .set_conversation_context(
+            user_id,
+            Message {
+                role: "assistant".to_string(),
+                content: content.to_string(),
+                reasoning: None,
+            },
+        )
+        .await;
+
+    // Split content into Telegram-safe chunks
+    let chunked_response = ret_message
+        .chunks(CHUNK_SIZE)
+        .map(|chunk| chunk.iter().collect::<String>())
+        .collect::<Vec<_>>();
+
     event!(
         Level::INFO,
-        "{}: {}",
-        chrono::Local::now(),
-        "AI writing".green()
+        "Returning {} chunks for user {}",
+        chunked_response.len(),
+        user_id
     );
-    let res = client.post(url).headers(header).json(&body).send().await;
-    event!(Level::INFO, "returned result {:?}", res);
-    match res {
-        Ok(res) => {
-            let text = res.json::<Answer>().await;
-            event!(Level::INFO, "returned text {:?}", text);
-            match text {
-                Ok(text) => {
-                    // println!("Answer: {:?}", text);
-                    event!(
-                        Level::INFO,
-                        "{}: {}",
-                        chrono::Local::now(),
-                        "AI return answer.".green()
-                    );
 
-                    let message = text.choices[0].message.clone();
-
-                    storage
-                        .set_conversation_context(user_id, message.clone())
-                        .await;
-
-                    let ret_message: Vec<char>;
-
-                    if !CONFIG.get_bool("thinking").unwrap_or(false) {
-                        ret_message = THINK_TAG_RE
-                            .replace_all(&message.content, "")
-                            .chars()
-                            .collect();
-                        println!("ret_mess1");
-                    } else {
-                        ret_message = message.content.chars().collect();
-                        println!("ret_mess2");
-                    }
-                    let mut ret_vec: Vec<String> = vec![];
-
-                    for chunk in ret_message.chunks(CHUNK_SIZE) {
-                        ret_vec.push(format!("{}", chunk.iter().collect::<String>()));
-                    }
-
-                    ret_vec
-                }
-                Err(e) => {
-                    event!(
-                        Level::INFO,
-                        "{}{}",
-                        "Llama send wrong answer format: ".red(),
-                        e
-                    );
-                    vec![format!("Error with response: {}", e.to_string())]
-                }
-            }
-        }
-        Err(e) => {
-            event!(Level::INFO, "{}{}", "Llama connection error: ".red(), e);
-            vec![format!("Unable to connect: {}", e.to_string())]
-        }
-    }
+    chunked_response
 }
