@@ -26,10 +26,13 @@ pub async fn message_handler(
     msg: Message,
     busy: BusySet,
     storage: Arc<dyn Storage>,
+    bot_id: UserId,
 ) -> ResponseResult<()> {
     // Only process private chats
     if !msg.chat.is_private() {
-        return Ok(());
+        if !msg.reply_to_message().is_some_and(|reply| reply.from.as_ref().is_some_and(|u| u.id == bot_id)) {
+            return Ok(());
+        }
     }
 
     let Some(text) = msg.text() else {

@@ -58,10 +58,13 @@ async fn main() -> Result<(), Error> {
     event!(Level::INFO, "Storage configured. DashSet initializing.");
     let busy: Arc<DashSet<i64>> = Arc::new(DashSet::new());
 
+    
+    let bot_id = bot.get_me().await.unwrap().id;
+
     event!(Level::INFO, "Dash set ready. Running dispatcher.");
     // Start the dispatcher with configured dependencies
     Dispatcher::builder(bot, handler)
-        .dependencies(dptree::deps![storage, busy])
+        .dependencies(dptree::deps![storage, busy, bot_id])
         .enable_ctrlc_handler()
         .build()
         .dispatch()
