@@ -65,6 +65,7 @@ async fn main() -> Result<(), Error> {
     // Start the dispatcher with configured dependencies
     Dispatcher::builder(bot, handler)
         .dependencies(dptree::deps![storage, busy, bot_id])
+        .distribution_function(|upd| upd.chat().map(|c| c.id))
         .enable_ctrlc_handler()
         .build()
         .dispatch()
