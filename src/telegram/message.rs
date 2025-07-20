@@ -4,9 +4,9 @@
 //! It processes user commands and manages interactions with the Llama AI model.
 use crate::{storage::Storage, telegram::ai_request::handle_ai_request};
 use dashmap::DashSet;
-use tracing::warn;
 use std::sync::Arc;
-use teloxide::{prelude::*, types::Message, Bot};
+use teloxide::{Bot, prelude::*, types::Message};
+use tracing::warn;
 
 pub type BusySet = Arc<DashSet<i64>>;
 
@@ -30,7 +30,10 @@ pub async fn message_handler(
 ) -> ResponseResult<()> {
     // Only process private chats
     if !msg.chat.is_private() {
-        if !msg.reply_to_message().is_some_and(|reply| reply.from.as_ref().is_some_and(|u| u.id == bot_id)) {
+        if !msg
+            .reply_to_message()
+            .is_some_and(|reply| reply.from.as_ref().is_some_and(|u| u.id == bot_id))
+        {
             return Ok(());
         }
     }
@@ -40,6 +43,7 @@ pub async fn message_handler(
     };
 
     let chat_id = msg.chat.id;
+    let message_id = msg.id;
     let text = text.to_string();
 
     // Clone necessary resources for async task
@@ -51,6 +55,7 @@ pub async fn message_handler(
         handle_ai_request(
             bot_clone,
             chat_id,
+            message_id,
             text,
             storage_clone,
             busy_clone,

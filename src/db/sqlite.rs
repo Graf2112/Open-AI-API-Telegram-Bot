@@ -1,5 +1,5 @@
-use sqlx::{migrate::MigrateDatabase, Error, Pool, Sqlite, SqlitePool};
-use tracing::{event, Level};
+use sqlx::{Error, Pool, Sqlite, SqlitePool, migrate::MigrateDatabase};
+use tracing::{Level, event};
 
 pub async fn init_db() -> Result<Pool<Sqlite>, Error> {
     if !Sqlite::database_exists("db.sqlite").await.unwrap_or(false) {

@@ -5,17 +5,17 @@
 use config::{Config, ConfigError, File, FileFormat};
 
 use reqwest::{
-    header::{self, HeaderMap},
     Client,
+    header::{self, HeaderMap},
 };
-use tracing::{event, Level};
+use tracing::{Level, event};
 
 use std::{path::Path, sync::Arc};
 
 use crate::{
+    CONFIG,
     lm_types::{Answer, Message},
     storage::Storage,
-    CONFIG,
 };
 
 const CHUNK_SIZE: usize = 4095;
@@ -44,11 +44,7 @@ pub fn get_config() -> Result<Config, ConfigError> {
 ///
 /// # Returns
 /// * `String` - AI model response or error message
-pub async fn reqwest_ai(
-    context: String,
-    user_id: i64,
-    storage: Arc<dyn Storage>,
-) -> Vec<String> {
+pub async fn reqwest_ai(context: String, user_id: i64, storage: Arc<dyn Storage>) -> Vec<String> {
     // Get configuration values with proper error handling
     let model = match CONFIG.get_string("model") {
         Ok(model) => model,
@@ -64,15 +60,16 @@ pub async fn reqwest_ai(
     });
 
     // Add user message to conversation history
-    storage.set_conversation_context(
-        user_id,
-        Message {
-            role: "user".to_string(),
-            content: context.clone(),
-            reasoning: None,
-        },
-    )
-    .await;
+    storage
+        .set_conversation_context(
+            user_id,
+            Message {
+                role: "user".to_string(),
+                content: context.clone(),
+                reasoning: None,
+            },
+        )
+        .await;
 
     // Prepare system context
     let fingerprint = storage.get_system_fingerprint(user_id).await;
@@ -88,7 +85,7 @@ pub async fn reqwest_ai(
     // Build request headers
     let mut headers = HeaderMap::new();
     headers.insert(header::CONTENT_TYPE, "application/json".parse().unwrap());
-    
+
     if let Ok(api_key) = CONFIG.get_string("api_key") {
         if !api_key.is_empty() {
             headers.insert(
@@ -105,9 +102,7 @@ pub async fn reqwest_ai(
         reasoning: None,
     }];
 
-    
     messages.extend(storage.get_conversation_context(user_id).await);
-    
 
     // Prepare request body
     let body = serde_json::json!({
@@ -123,13 +118,8 @@ pub async fn reqwest_ai(
     // Send request to AI service
     let client = Client::new();
     event!(Level::INFO, "Sending request to AI service");
-    
-    let response = match client.post(&url)
-        .headers(headers)
-        .json(&body)
-        .send()
-        .await
-    {
+
+    let response = match client.post(&url).headers(headers).json(&body).send().await {
         Ok(res) => res,
         Err(e) => {
             event!(Level::ERROR, "AI connection error: {}", e);
@@ -156,10 +146,7 @@ pub async fn reqwest_ai(
     let ret_message: Vec<char>;
 
     if !CONFIG.get_bool("thinking").unwrap_or(false) {
-        ret_message = THINK_TAG_RE
-            .replace_all(&content, "")
-            .chars()
-            .collect();
+        ret_message = THINK_TAG_RE.replace_all(&content, "").chars().collect();
     } else {
         ret_message = content.chars().collect();
     }

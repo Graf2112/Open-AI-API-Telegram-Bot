@@ -1,20 +1,19 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use tracing::{event, Level};
+use tracing::{Level, event};
 
 mod db_storage;
 mod memory_storage;
 
 use crate::{
-    db,
+    CONFIG, db,
     lm_types::Message,
     storage::{db_storage::DbStorage, memory_storage::MemoryStorage},
-    CONFIG,
 };
 
 /// Defines the interface for conversation storage implementations
-/// 
+///
 /// This trait provides methods for managing conversation context, system fingerprints,
 /// and temperature settings for individual chat sessions. Implementations must be
 /// thread-safe (Send + Sync) and support asynchronous operations.
@@ -24,18 +23,18 @@ pub trait Storage: Send + Sync {
     ///
     /// # Arguments
     /// * `chat_id` - Unique identifier for the chat session
-    /// 
+    ///
     /// # Returns
     /// Vector of messages representing the conversation history
     async fn get_conversation_context(&self, chat_id: i64) -> Vec<Message>;
-    
+
     /// Adds a message to the conversation history
     ///
     /// # Arguments
     /// * `chat_id` - Unique identifier for the chat session
     /// * `context` - Message to add to the conversation history
     async fn set_conversation_context(&self, chat_id: i64, context: Message);
-    
+
     /// Clears all conversation history for a chat
     ///
     /// # Arguments
@@ -45,14 +44,14 @@ pub trait Storage: Send + Sync {
     /// Retrieves the system fingerprint for a chat
     ///
     /// The system fingerprint defines the AI personality and behavior characteristics
-    /// 
+    ///
     /// # Arguments
     /// * `chat_id` - Unique identifier for the chat session
-    /// 
+    ///
     /// # Returns
     /// String containing the system fingerprint configuration
     async fn get_system_fingerprint(&self, chat_id: i64) -> String;
-    
+
     /// Updates the system fingerprint for a chat
     ///
     /// # Arguments
@@ -63,14 +62,14 @@ pub trait Storage: Send + Sync {
     /// Retrieves the temperature setting for a chat
     ///
     /// Temperature controls the creativity/randomness of AI responses (0.0-2.0)
-    /// 
+    ///
     /// # Arguments
     /// * `chat_id` - Unique identifier for the chat session
-    /// 
+    ///
     /// # Returns
     /// Current temperature value as f32
     async fn get_temperature(&self, chat_id: i64) -> f32;
-    
+
     /// Updates the temperature setting for a chat
     ///
     /// # Arguments
@@ -95,14 +94,14 @@ pub trait Storage: Send + Sync {
 pub async fn create_storage() -> Arc<dyn Storage> {
     // Check if database storage is enabled in configuration
     let use_db = CONFIG.get_bool("enable_db").unwrap_or(false);
-    
+
     if use_db {
         event!(Level::INFO, "Initializing database storage...");
-        
+
         match db::sqlite::init_db().await {
             Ok(_) => {
                 event!(Level::INFO, "Database initialized successfully");
-                
+
                 match DbStorage::new().await {
                     Ok(db_storage) => {
                         event!(Level::INFO, "Using database storage backend");

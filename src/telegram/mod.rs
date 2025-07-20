@@ -1,4 +1,4 @@
-use command::{command_handler, Command};
+use command::{Command, command_handler};
 use message::{invalid, message_handler};
 use teloxide::{
     dispatching::{HandlerExt, UpdateFilterExt},
@@ -13,14 +13,12 @@ mod command;
 mod inline;
 mod message;
 
-pub fn get_storage_handler() -> Handler<
-    'static,
-    Result<(), teloxide::RequestError>,
-    teloxide::dispatching::DpHandlerDescription,
-> {
+pub fn get_storage_handler()
+-> Handler<'static, Result<(), teloxide::RequestError>, teloxide::dispatching::DpHandlerDescription>
+{
     let command_branch = Update::filter_message()
-    .filter_command::<Command>()
-    .endpoint(command_handler);
+        .filter_command::<Command>()
+        .endpoint(command_handler);
 
     let message_branch = Update::filter_message().endpoint(message_handler);
     let inline_branch = Update::filter_inline_query().endpoint(inline_handler);

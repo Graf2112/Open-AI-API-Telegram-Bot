@@ -9,7 +9,7 @@ use lazy_static::lazy_static;
 use std::sync::Arc;
 use telegram::get_storage_handler;
 use teloxide::prelude::*;
-use tracing::{event, Level};
+use tracing::{Level, event};
 
 mod db;
 mod lm_types;
@@ -58,7 +58,6 @@ async fn main() -> Result<(), Error> {
     event!(Level::INFO, "Storage configured. DashSet initializing.");
     let busy: Arc<DashSet<i64>> = Arc::new(DashSet::new());
 
-    
     let bot_id = bot.get_me().await.unwrap().id;
 
     event!(Level::INFO, "Dash set ready. Running dispatcher.");

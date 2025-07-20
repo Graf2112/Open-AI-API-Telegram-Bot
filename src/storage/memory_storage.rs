@@ -2,7 +2,7 @@ use dashmap::DashMap;
 
 use async_trait::async_trait;
 
-use crate::{lm_types::Message, storage::Storage, CONFIG};
+use crate::{CONFIG, lm_types::Message, storage::Storage};
 
 // Реализации хранилищ
 pub struct MemoryStorage {

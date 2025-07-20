@@ -1,10 +1,10 @@
-use sqlx::{query, Executor, Pool, Sqlite};
+use sqlx::{Executor, Pool, Sqlite, query};
 use std::sync::Arc;
-use tracing::{event, Level};
+use tracing::{Level, event};
 
 use async_trait::async_trait;
 
-use crate::{db, lm_types::Message, storage::Storage, Error, CONFIG};
+use crate::{CONFIG, Error, db, lm_types::Message, storage::Storage};
 
 pub struct DbStorage {
     // Структура для работы с БД

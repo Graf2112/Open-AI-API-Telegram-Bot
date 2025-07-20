@@ -1,11 +1,9 @@
 use std::sync::Arc;
 
 use teloxide::{
-    prelude::Requester,
-    types::{ChatAction, ChatId},
-    Bot,
+    prelude::Requester, sugar::request::RequestReplyExt, types::{ChatAction, ChatId, MessageId}, Bot
 };
-use tracing::{debug, warn, error};
+use tracing::{debug, error, warn};
 
 use crate::{storage::Storage, system, telegram::message::BusySet};
 
@@ -57,6 +55,7 @@ impl Drop for BusyGuard {
 pub async fn handle_ai_request(
     bot: Bot,
     chat_id: ChatId,
+    message_id: MessageId,
     text: String,
     storage: Arc<dyn Storage>,
     busy: BusySet,
@@ -75,7 +74,7 @@ pub async fn handle_ai_request(
     // Отправка typing indicator
     let typing_fut = bot.send_chat_action(chat_id, ChatAction::Typing);
     let ai_fut = system::reqwest_ai(text, chat_id.0, storage);
-    
+
     let (typing_res, ai_res) = tokio::join!(typing_fut, ai_fut);
 
     if let Err(e) = typing_res {
@@ -83,14 +82,13 @@ pub async fn handle_ai_request(
     }
 
     // Обработка результата AI
-    
+
     for chunk in ai_res {
-        if let Err(e) = bot.send_message(chat_id, &chunk).await {
+        if let Err(e) = bot.send_message(chat_id, &chunk).reply_to(message_id).await {
             error!("Failed to send message chunk to {}: {:?}", chat_id, e);
             break;
         }
     }
-        
 
     // Явный дроп стража перед выходом
     drop(guard);

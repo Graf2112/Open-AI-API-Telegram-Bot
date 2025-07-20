@@ -3,7 +3,7 @@ use crate::{
 };
 use std::sync::Arc;
 use teloxide::utils::command::BotCommands;
-use teloxide::{prelude::*, types::Message, Bot};
+use teloxide::{Bot, prelude::*, types::Message};
 
 #[derive(BotCommands, Clone, Debug)]
 #[command(
@@ -17,8 +17,9 @@ pub enum UserCommands {
     Help,
     #[command(description = "place your promt after this command. It will be sent to the model.")]
     Chat,
+    #[command(description = "try to watch inyour future.")]
+    Future,
 }
-
 
 /// Bot commands enumeration
 ///
@@ -52,6 +53,8 @@ pub enum Command {
     // // Stops current operation
     // #[command(description = "stops current operation.")]
     // Stop,
+    #[command(description = "try to watch inyour future.")]
+    Future,
 }
 
 async fn is_admin(bot: &Bot, chat_id: ChatId, user_id: UserId) -> bool {
@@ -82,7 +85,6 @@ pub async fn command_handler(
 ) -> ResponseResult<()> {
     match command {
         Command::Start => {
-
             bot.send_message(msg.chat.id, "Welcome to AI Telegram Bot!")
                 .await?;
         }
@@ -90,28 +92,41 @@ pub async fn command_handler(
             if let Some(user) = msg.from {
                 if !msg.chat.is_private() && is_admin(&bot, msg.chat.id, user.id).await {
                     bot.send_message(msg.chat.id, UserCommands::descriptions().to_string())
-                    .await?;
+                        .await?;
                 } else {
                     bot.send_message(msg.chat.id, Command::descriptions().to_string())
-                    .await?;
+                        .await?;
                 }
             }
-            
         }
         Command::Chat(text) => {
+            let message_id = msg.id;
             let chat_id = msg.chat.id;
             let bot_clone = bot.clone();
             let storage_clone = storage.clone();
             let busy_clone = busy.clone();
 
             if !msg.chat.is_private() {
-                
-                handle_ai_request(bot_clone, chat_id, text, storage_clone, busy_clone).await;
-                
+                handle_ai_request(
+                    bot_clone,
+                    chat_id,
+                    message_id,
+                    text,
+                    storage_clone,
+                    busy_clone,
+                )
+                .await;
             } else {
                 tokio::spawn(async move {
-                    handle_ai_request(bot_clone, chat_id, text, storage_clone, busy_clone)
-                        .await;
+                    handle_ai_request(
+                        bot_clone,
+                        chat_id,
+                        message_id,
+                        text,
+                        storage_clone,
+                        busy_clone,
+                    )
+                    .await;
                 });
             }
         }
@@ -140,8 +155,7 @@ pub async fn command_handler(
                 if !msg.chat.is_private() && is_admin(&bot, msg.chat.id, user.id).await {
                     bot.delete_message(msg.chat.id, msg.id).await?;
                     storage.set_temperature(msg.chat.id.0, temperature).await;
-                }
-                else {
+                } else {
                     storage.set_temperature(msg.chat.id.0, temperature).await;
                     bot.send_message(msg.chat.id, "Temperature set").await?;
                 }
@@ -154,17 +168,36 @@ pub async fn command_handler(
                     storage.clear_conversation_context(msg.chat.id.0).await;
                     bot.send_message(msg.chat.id, "Conversation cleared")
                         .await?;
-                }
-                else {
+                } else {
                     storage.clear_conversation_context(msg.chat.id.0).await;
                     bot.send_message(msg.chat.id, "Conversation cleared")
                         .await?;
                 }
             }
         }
-        // Command::Stop => {
-        //     bot.send_message(msg.chat.id, "Stop").await?;
-        // }
+        Command::Future => {
+            if let Some(user) = msg.from {
+                let chat_id = msg.chat.id;
+                let message_id = msg.id;
+                let bot_clone = bot.clone();
+                let storage_clone = storage.clone();
+                let busy_clone = busy.clone();
+
+                let promt = format!("Ты опытный предсказатель. Тебе нужно составить предсказание на день для человека. 
+            Для гадания можешь на выбор использовать Таро, Руны или по звёздам. Текущая дата: {}
+        Пользователь: {} Имя: {} {} Отвечай очень кратко.", chrono::Local::now(), user.username.unwrap_or("Unknown".into()), user.first_name, user.last_name.unwrap_or("".into()));
+                handle_ai_request(
+                    bot_clone,
+                    chat_id,
+                    message_id,
+                    promt,
+                    storage_clone,
+                    busy_clone,
+                )
+                .await;
+            }
+        }
     };
+
     Ok(())
 }
