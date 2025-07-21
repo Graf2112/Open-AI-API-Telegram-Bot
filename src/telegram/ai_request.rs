@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
 use teloxide::{
-    prelude::Requester, sugar::request::RequestReplyExt, types::{ChatAction, ChatId, MessageId}, Bot
+    Bot,
+    payloads::SendMessageSetters,
+    prelude::Requester,
+    sugar::request::RequestReplyExt,
+    types::{ChatAction, ChatId, MessageId},
 };
 use tracing::{debug, error, warn};
 
@@ -82,11 +86,19 @@ pub async fn handle_ai_request(
     }
 
     // Обработка результата AI
-
+    #[allow(deprecated)]
     for chunk in ai_res {
-        if let Err(e) = bot.send_message(chat_id, &chunk).reply_to(message_id).await {
-            error!("Failed to send message chunk to {}: {:?}", chat_id, e);
-            break;
+        if let Err(e) = bot
+            .send_message(chat_id, &chunk)
+            .parse_mode(teloxide::types::ParseMode::Markdown)
+            .reply_to(message_id)
+            .await
+        {
+            if let Err(e) = bot.send_message(chat_id, &chunk).reply_to(message_id).await {
+                error!("Failed to send message chunk to {}: {:?}", chat_id, e);
+                break;
+            }
+            error!("Something went wrong with Markdown {}: {:?}", chat_id, e);
         }
     }
 

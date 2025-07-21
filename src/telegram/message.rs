@@ -28,41 +28,59 @@ pub async fn message_handler(
     storage: Arc<dyn Storage>,
     bot_id: UserId,
 ) -> ResponseResult<()> {
-    // Only process private chats
-    if !msg.chat.is_private() {
-        if !msg
-            .reply_to_message()
-            .is_some_and(|reply| reply.from.as_ref().is_some_and(|u| u.id == bot_id))
-        {
+    if let Some(user) = &msg.from {
+        if !msg.chat.is_private() {
+            if !msg
+                .reply_to_message()
+                .is_some_and(|reply| reply.from.as_ref().is_some_and(|u| u.id == bot_id))
+            {
+                return Ok(());
+            }
+        }
+
+        let Some(text) = &msg.text() else {
             return Ok(());
+        };
+
+        let chat_id = msg.chat.id;
+        let message_id = msg.id;
+        let text = format!(
+            "{{Username: {} (@{}), DateTime: {}, Message: {}}}",
+            user.full_name(),
+            user.username.clone().unwrap_or("".to_owned()),
+            chrono::Local::now(),
+            text
+        );
+
+        // Clone necessary resources for async task
+        let bot_clone = bot.clone();
+        let storage_clone = storage.clone();
+        let busy_clone = busy.clone();
+
+        if !msg.chat.is_private() {
+            handle_ai_request(
+                bot_clone,
+                chat_id,
+                message_id,
+                text,
+                storage_clone,
+                busy_clone,
+            )
+            .await;
+        } else {
+            tokio::spawn(async move {
+                handle_ai_request(
+                    bot_clone,
+                    chat_id,
+                    message_id,
+                    text,
+                    storage_clone,
+                    busy_clone,
+                )
+                .await;
+            });
         }
     }
-
-    let Some(text) = msg.text() else {
-        return invalid(bot, msg).await;
-    };
-
-    let chat_id = msg.chat.id;
-    let message_id = msg.id;
-    let text = text.to_string();
-
-    // Clone necessary resources for async task
-    let bot_clone = bot.clone();
-    let storage_clone = storage.clone();
-    let busy_clone = busy.clone();
-
-    tokio::spawn(async move {
-        handle_ai_request(
-            bot_clone,
-            chat_id,
-            message_id,
-            text,
-            storage_clone,
-            busy_clone,
-        )
-        .await;
-    });
-
     Ok(())
 }
 

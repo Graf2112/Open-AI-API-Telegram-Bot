@@ -185,7 +185,7 @@ pub async fn command_handler(
 
                 let promt = format!("Ты опытный предсказатель. Тебе нужно составить предсказание на день для человека. 
             Для гадания можешь на выбор использовать Таро, Руны или по звёздам. Текущая дата: {}
-        Пользователь: {} Имя: {} {} Отвечай очень кратко.", chrono::Local::now(), user.username.unwrap_or("Unknown".into()), user.first_name, user.last_name.unwrap_or("".into()));
+        Пользователь: {} Имя: {} Отвечай очень кратко.", chrono::Local::now(), user.username.clone().unwrap_or("Unknown".into()), user.full_name());
                 handle_ai_request(
                     bot_clone,
                     chat_id,
