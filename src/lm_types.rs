@@ -1,3 +1,5 @@
+use crate::storage::Note;
+
 /// API Response structure for Llama model
 #[allow(unused)]
 #[derive(serde::Deserialize, Debug)]
@@ -54,4 +56,14 @@ pub struct Message {
     pub content: String,
     /// Reasoning content (if applicable)
     pub reasoning: Option<String>,
+}
+
+impl From<&Note> for Message {
+    fn from(note: &Note) -> Self {
+        Self {
+            role: "user".into(),
+            content: note.text.clone(),
+            reasoning: None,
+        }
+    }
 }

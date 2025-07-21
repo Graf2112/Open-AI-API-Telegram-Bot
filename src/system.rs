@@ -102,6 +102,13 @@ pub async fn reqwest_ai(context: String, user_id: i64, storage: Arc<dyn Storage>
         reasoning: None,
     }];
 
+    messages.extend(
+        storage
+            .list_notes(user_id)
+            .await
+            .iter()
+            .map(|note| note.into()),
+    );
     messages.extend(storage.get_conversation_context(user_id).await);
 
     // Prepare request body

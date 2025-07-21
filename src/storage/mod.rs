@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use tracing::{Level, event};
 
 mod db_storage;
@@ -11,6 +12,24 @@ use crate::{
     lm_types::Message,
     storage::{db_storage::DbStorage, memory_storage::MemoryStorage},
 };
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Note {
+    pub note_id: i64,
+    pub chat_id: i64,
+    pub user_id: u64,
+    pub text: String,
+}
+
+impl ToString for Note {
+    fn to_string(&self) -> String {
+        format!(
+            "Note id: `{}`, text: {}... \n",
+            self.note_id,
+            self.text.chars().take(30).collect::<String>()
+        )
+    }
+}
 
 /// Defines the interface for conversation storage implementations
 ///
@@ -76,6 +95,11 @@ pub trait Storage: Send + Sync {
     /// * `chat_id` - Unique identifier for the chat session
     /// * `temperature` - New temperature value (0.0-2.0)
     async fn set_temperature(&self, chat_id: i64, temperature: f32);
+
+    async fn add_note(&self, note: Note);
+    async fn remove_note(&self, chat_id: i64, note_id: i64);
+    async fn list_notes(&self, chat_id: i64) -> Vec<Note>;
+    async fn erase_notes(&self, chat_id: i64);
 }
 
 /// Creates the appropriate storage implementation based on configuration

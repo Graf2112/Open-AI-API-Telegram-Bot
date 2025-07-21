@@ -1,9 +1,11 @@
+use crate::storage::Note;
 use crate::{
     storage::Storage, telegram::ai_request::handle_ai_request, telegram::message::BusySet,
 };
 use std::sync::Arc;
 use teloxide::utils::command::BotCommands;
 use teloxide::{Bot, prelude::*, types::Message};
+use tracing::error;
 
 #[derive(BotCommands, Clone, Debug)]
 #[command(
@@ -55,6 +57,14 @@ pub enum Command {
     // Stop,
     #[command(description = "try to watch inyour future.")]
     Future,
+    #[command(description = "add note.")]
+    AddNote(String),
+    #[command(description = "remove note.")]
+    RemoveNote(i64),
+    #[command(description = "list notes.")]
+    ListNotes,
+    #[command(description = "erase all notes.")]
+    EraseNotes,
 }
 
 async fn is_admin(bot: &Bot, chat_id: ChatId, user_id: UserId) -> bool {
@@ -90,10 +100,15 @@ pub async fn command_handler(
         }
         Command::Help => {
             if let Some(user) = msg.from {
-                if !msg.chat.is_private() && is_admin(&bot, msg.chat.id, user.id).await {
-                    bot.send_message(msg.chat.id, UserCommands::descriptions().to_string())
-                        .await?;
-                } else {
+                if !msg.chat.is_private() {
+                    if is_admin(&bot, msg.chat.id, user.id).await {
+                        bot.send_message(msg.chat.id, Command::descriptions().to_string())
+                            .await?;
+                    } else {
+                        bot.send_message(msg.chat.id, UserCommands::descriptions().to_string())
+                            .await?;
+                    }
+                } else if msg.chat.is_private() {
                     bot.send_message(msg.chat.id, Command::descriptions().to_string())
                         .await?;
                 }
@@ -137,7 +152,7 @@ pub async fn command_handler(
                     storage
                         .set_system_fingerprint(msg.chat.id.0, fingerprint)
                         .await;
-                } else {
+                } else if msg.chat.is_private() {
                     storage
                         .set_system_fingerprint(msg.chat.id.0, fingerprint)
                         .await;
@@ -155,7 +170,7 @@ pub async fn command_handler(
                 if !msg.chat.is_private() && is_admin(&bot, msg.chat.id, user.id).await {
                     bot.delete_message(msg.chat.id, msg.id).await?;
                     storage.set_temperature(msg.chat.id.0, temperature).await;
-                } else {
+                } else if msg.chat.is_private() {
                     storage.set_temperature(msg.chat.id.0, temperature).await;
                     bot.send_message(msg.chat.id, "Temperature set").await?;
                 }
@@ -166,9 +181,7 @@ pub async fn command_handler(
                 if !msg.chat.is_private() && is_admin(&bot, msg.chat.id, user.id).await {
                     bot.delete_message(msg.chat.id, msg.id).await?;
                     storage.clear_conversation_context(msg.chat.id.0).await;
-                    bot.send_message(msg.chat.id, "Conversation cleared")
-                        .await?;
-                } else {
+                } else if msg.chat.is_private() {
                     storage.clear_conversation_context(msg.chat.id.0).await;
                     bot.send_message(msg.chat.id, "Conversation cleared")
                         .await?;
@@ -195,6 +208,87 @@ pub async fn command_handler(
                     busy_clone,
                 )
                 .await;
+            }
+        }
+        Command::AddNote(text) => {
+            if let Some(user) = msg.from {
+                if !msg.chat.is_private() && is_admin(&bot, msg.chat.id, user.id).await {
+                    let _ = bot.delete_message(msg.chat.id, msg.id).await;
+                    storage
+                        .add_note(Note {
+                            note_id: chrono::Local::now().timestamp_millis(),
+                            chat_id: msg.chat.id.0,
+                            user_id: user.id.0,
+                            text: text,
+                        })
+                        .await;
+                } else if msg.chat.is_private() {
+                    storage
+                        .add_note(Note {
+                            note_id: chrono::Local::now().timestamp_millis(),
+                            chat_id: msg.chat.id.0,
+                            user_id: user.id.0,
+                            text: text,
+                        })
+                        .await;
+                }
+            }
+        }
+        Command::RemoveNote(id) => {
+            if let Some(user) = msg.from {
+                if !msg.chat.is_private() && is_admin(&bot, msg.chat.id, user.id).await {
+                    let _ = bot.delete_message(msg.chat.id, msg.id).await;
+                    storage.remove_note(msg.chat.id.0, id).await;
+                } else if msg.chat.is_private() {
+                    storage.remove_note(msg.chat.id.0, id).await;
+                }
+            }
+        },
+        Command::ListNotes => {
+            if let Some(user) = msg.from {
+                if !msg.chat.is_private() && is_admin(&bot, msg.chat.id, user.id).await {
+                    let _ = bot.delete_message(msg.chat.id, msg.id).await;
+                    let notes = storage.list_notes(msg.chat.id.0).await;
+                    let mut ans = String::from("Notes for chat: \n");
+                    for note in notes {
+                        ans.push_str(&note.to_string());
+                    }
+                    if let Err(e) = bot
+                        .send_message(user.id, &ans)
+                        .parse_mode(teloxide::types::ParseMode::Markdown)
+                        .await
+                    {
+                        if let Err(e) = bot.send_message(user.id, &ans).await {
+                            error!("Failed to send message chunk to {}: {:?}", user.id, e);
+                        }
+                        error!("Something went wrong with Markdown {}: {:?}", user.id, e);
+                    }
+                } else if msg.chat.is_private() {
+                    let notes = storage.list_notes(msg.chat.id.0).await;
+                    let mut ans = String::from("Notes for chat: \n");
+                    for note in notes {
+                        ans.push_str(&note.to_string());
+                    }
+                    if let Err(e) = bot
+                        .send_message(user.id, &ans)
+                        .parse_mode(teloxide::types::ParseMode::Markdown)
+                        .await
+                    {
+                        if let Err(e) = bot.send_message(user.id, &ans).await {
+                            error!("Failed to send message chunk to {}: {:?}", user.id, e);
+                        }
+                        error!("Something went wrong with Markdown {}: {:?}", user.id, e);
+                    }
+                }
+            }
+        }
+        Command::EraseNotes => {
+            if let Some(user) = msg.from {
+                if (!msg.chat.is_private() && is_admin(&bot, msg.chat.id, user.id).await)
+                    || msg.chat.is_private()
+                {
+                    storage.erase_notes(msg.chat.id.0).await;
+                }
             }
         }
     };

@@ -2,13 +2,18 @@ use dashmap::DashMap;
 
 use async_trait::async_trait;
 
-use crate::{CONFIG, lm_types::Message, storage::Storage};
+use crate::{
+    CONFIG,
+    lm_types::Message,
+    storage::{Note, Storage},
+};
 
 // Реализации хранилищ
 pub struct MemoryStorage {
     context: DashMap<i64, Vec<Message>>,
     fingerprint: DashMap<i64, String>,
     temperature: DashMap<i64, f32>,
+    notes: DashMap<i64, Vec<Note>>,
     max_conv_len: usize,
 }
 
@@ -19,6 +24,7 @@ impl MemoryStorage {
             context: DashMap::with_capacity(100),
             fingerprint: DashMap::with_capacity(100),
             temperature: DashMap::with_capacity(100),
+            notes: DashMap::with_capacity(100),
             max_conv_len: CONFIG.get("max_conversation_len").unwrap_or(20),
         }
     }
@@ -68,5 +74,35 @@ impl Storage for MemoryStorage {
 
     async fn set_temperature(&self, user_id: i64, temperature: f32) {
         self.temperature.insert(user_id, temperature);
+    }
+
+    async fn add_note(&self, note: Note) {
+        self.notes
+            .entry(note.chat_id)
+            .and_modify(|notes| {
+                notes.push(note.clone());
+            })
+            .or_insert_with(|| vec![note]);
+    }
+
+    async fn remove_note(&self, chat_id: i64, note_id: i64) {
+        if let Some(mut notes) = self.notes.get_mut(&chat_id) {
+            notes.retain(|note| note.note_id != note_id);
+            if notes.is_empty() {
+                drop(notes); // Явно отпускаем мутабельную ссылку
+                self.notes.remove(&note_id);
+            }
+        }
+    }
+
+
+    async fn list_notes(&self, chat_id: i64) -> Vec<Note> {
+        self.notes
+            .get(&chat_id)
+            .map(|entry| entry.clone())
+            .unwrap_or_default()
+    }
+    async fn erase_notes(&self, chat_id: i64) {
+        self.notes.remove(&chat_id);
     }
 }

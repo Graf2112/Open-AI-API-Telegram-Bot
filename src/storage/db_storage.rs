@@ -4,7 +4,11 @@ use tracing::{Level, event};
 
 use async_trait::async_trait;
 
-use crate::{CONFIG, Error, db, lm_types::Message, storage::Storage};
+use crate::{
+    CONFIG, Error, db,
+    lm_types::Message,
+    storage::{Note, Storage},
+};
 
 pub struct DbStorage {
     // Структура для работы с БД
@@ -171,5 +175,18 @@ impl Storage for DbStorage {
                 ))
                 .await
         );
+    }
+
+    async fn add_note(&self, note: Note) {
+        todo!()
+    }
+    async fn remove_note(&self, chat_id: i64, note_id: i64) {
+        todo!()
+    }
+    async fn list_notes(&self, chat_id: i64) -> Vec<Note> {
+        todo!()
+    }
+    async fn erase_notes(&self, chat_id: i64) {
+        todo!()
     }
 }
