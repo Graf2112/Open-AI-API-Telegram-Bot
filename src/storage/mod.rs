@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use config::Map;
 use serde::{Deserialize, Serialize};
 use tracing::{Level, event};
 
@@ -33,7 +34,8 @@ impl ToString for Note {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChatSettings {
-    pub thread_id: Option<i64>,
+    pub is_supergroup: bool,
+    pub threads: Map<i64, bool>,
     pub enabled: bool,
 }
 

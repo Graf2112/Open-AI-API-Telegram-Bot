@@ -125,6 +125,7 @@ pub async fn command_handler(
             let storage_clone = storage.clone();
             let busy_clone = busy.clone();
 
+
             if !msg.chat.is_private() {
                 handle_ai_request(
                     bot_clone,

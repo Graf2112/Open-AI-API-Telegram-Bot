@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use dashmap::DashMap;
 
 use async_trait::async_trait;
@@ -108,12 +110,65 @@ impl Storage for MemoryStorage {
     }
 
     async fn enable(&self, chat_id: i64, thread_id: Option<i64>) {
-        todo!()
+        if let Some(thread_id) = thread_id {
+            self.chats
+                .entry(chat_id)
+                .and_modify(|chat| {
+                    chat.threads.insert(thread_id, true);
+                })
+                .or_insert_with(|| ChatSettings {
+                    is_supergroup: true,
+                    threads: HashMap::from([(thread_id, true)]),
+                    enabled: true,
+                });
+        } else {
+            self.chats
+                .entry(chat_id)
+                .and_modify(|chat| {
+                    chat.enabled = true;
+                })
+                .or_insert_with(|| ChatSettings {
+                    is_supergroup: false,
+                    threads: HashMap::new(),
+                    enabled: true,
+                });
+        }
     }
     async fn disable(&self, chat_id: i64, thread_id: Option<i64>) {
-        todo!()
+        if let Some(thread_id) = thread_id {
+            self.chats
+                .entry(chat_id)
+                .and_modify(|chat| {
+                    chat.threads.insert(thread_id, false);
+                })
+                .or_insert_with(|| ChatSettings {
+                    is_supergroup: true,
+                    threads: HashMap::from([(thread_id, false)]),
+                    enabled: true,
+                });
+        } else {
+            self.chats
+                .entry(chat_id)
+                .and_modify(|chat| {
+                    chat.enabled = false;
+                })
+                .or_insert_with(|| ChatSettings {
+                    is_supergroup: false,
+                    threads: HashMap::new(),
+                    enabled: false,
+                });
+        }
     }
     async fn is_enabled(&self, chat_id: i64, thread_id: Option<i64>) -> bool {
-        todo!()
+        let chat = self.chats.get(&chat_id).map(|entry| entry.clone());
+        if let Some(chat) = chat {
+            if let Some(thread_id) = thread_id {
+                return *chat.threads.get(&thread_id).unwrap_or(&true);
+            } else {
+                return chat.enabled;
+            }
+        }
+
+        true
     }
 }
