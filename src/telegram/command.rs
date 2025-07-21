@@ -65,6 +65,10 @@ pub enum Command {
     ListNotes,
     #[command(description = "erase all notes.")]
     EraseNotes,
+    #[command(description = "enable bot for this chat.")]
+    Enable,
+    #[command(description = "disable bot for this chat.")]
+    Disable,
 }
 
 async fn is_admin(bot: &Bot, chat_id: ChatId, user_id: UserId) -> bool {
@@ -243,32 +247,21 @@ pub async fn command_handler(
                     storage.remove_note(msg.chat.id.0, id).await;
                 }
             }
-        },
+        }
         Command::ListNotes => {
             if let Some(user) = msg.from {
-                if !msg.chat.is_private() && is_admin(&bot, msg.chat.id, user.id).await {
-                    let _ = bot.delete_message(msg.chat.id, msg.id).await;
+                if (!msg.chat.is_private() && is_admin(&bot, msg.chat.id, user.id).await)
+                    || msg.chat.is_private()
+                {
+                    if !msg.chat.is_private() {
+                        let _ = bot.delete_message(msg.chat.id, msg.id).await;
+                    }
                     let notes = storage.list_notes(msg.chat.id.0).await;
                     let mut ans = String::from("Notes for chat: \n");
                     for note in notes {
                         ans.push_str(&note.to_string());
                     }
-                    if let Err(e) = bot
-                        .send_message(user.id, &ans)
-                        .parse_mode(teloxide::types::ParseMode::Markdown)
-                        .await
-                    {
-                        if let Err(e) = bot.send_message(user.id, &ans).await {
-                            error!("Failed to send message chunk to {}: {:?}", user.id, e);
-                        }
-                        error!("Something went wrong with Markdown {}: {:?}", user.id, e);
-                    }
-                } else if msg.chat.is_private() {
-                    let notes = storage.list_notes(msg.chat.id.0).await;
-                    let mut ans = String::from("Notes for chat: \n");
-                    for note in notes {
-                        ans.push_str(&note.to_string());
-                    }
+                    #[allow(deprecated)]
                     if let Err(e) = bot
                         .send_message(user.id, &ans)
                         .parse_mode(teloxide::types::ParseMode::Markdown)
@@ -288,6 +281,36 @@ pub async fn command_handler(
                     || msg.chat.is_private()
                 {
                     storage.erase_notes(msg.chat.id.0).await;
+                }
+            }
+        }
+        Command::Enable => {
+            if let Some(user) = msg.from {
+                if (!msg.chat.is_private() && is_admin(&bot, msg.chat.id, user.id).await)
+                    || msg.chat.is_private()
+                {
+                    if let Some(thread_id) = msg.thread_id {
+                        storage
+                            .enable(msg.chat.id.0, Some(thread_id.0.0 as i64))
+                            .await;
+                    } else {
+                        storage.enable(msg.chat.id.0, None).await;
+                    }
+                }
+            }
+        }
+        Command::Disable => {
+            if let Some(user) = msg.from {
+                if (!msg.chat.is_private() && is_admin(&bot, msg.chat.id, user.id).await)
+                    || msg.chat.is_private()
+                {
+                    if let Some(thread_id) = msg.thread_id {
+                        storage
+                            .disable(msg.chat.id.0, Some(thread_id.0.0 as i64))
+                            .await;
+                    } else {
+                        storage.disable(msg.chat.id.0, None).await;
+                    }
                 }
             }
         }

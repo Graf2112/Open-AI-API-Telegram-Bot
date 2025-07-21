@@ -31,6 +31,12 @@ impl ToString for Note {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChatSettings {
+    pub thread_id: Option<i64>,
+    pub enabled: bool,
+}
+
 /// Defines the interface for conversation storage implementations
 ///
 /// This trait provides methods for managing conversation context, system fingerprints,
@@ -100,6 +106,9 @@ pub trait Storage: Send + Sync {
     async fn remove_note(&self, chat_id: i64, note_id: i64);
     async fn list_notes(&self, chat_id: i64) -> Vec<Note>;
     async fn erase_notes(&self, chat_id: i64);
+    async fn enable(&self, chat_id: i64, thread_id: Option<i64>);
+    async fn disable(&self, chat_id: i64, thread_id: Option<i64>);
+    async fn is_enabled(&self, chat_id: i64, thread_id: Option<i64>) -> bool;
 }
 
 /// Creates the appropriate storage implementation based on configuration

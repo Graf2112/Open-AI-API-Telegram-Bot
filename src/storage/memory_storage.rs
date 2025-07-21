@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use crate::{
     CONFIG,
     lm_types::Message,
-    storage::{Note, Storage},
+    storage::{ChatSettings, Note, Storage},
 };
 
 // Реализации хранилищ
@@ -14,6 +14,7 @@ pub struct MemoryStorage {
     fingerprint: DashMap<i64, String>,
     temperature: DashMap<i64, f32>,
     notes: DashMap<i64, Vec<Note>>,
+    chats: DashMap<i64, ChatSettings>,
     max_conv_len: usize,
 }
 
@@ -25,6 +26,7 @@ impl MemoryStorage {
             fingerprint: DashMap::with_capacity(100),
             temperature: DashMap::with_capacity(100),
             notes: DashMap::with_capacity(100),
+            chats: DashMap::with_capacity(100),
             max_conv_len: CONFIG.get("max_conversation_len").unwrap_or(20),
         }
     }
@@ -95,7 +97,6 @@ impl Storage for MemoryStorage {
         }
     }
 
-
     async fn list_notes(&self, chat_id: i64) -> Vec<Note> {
         self.notes
             .get(&chat_id)
@@ -104,5 +105,15 @@ impl Storage for MemoryStorage {
     }
     async fn erase_notes(&self, chat_id: i64) {
         self.notes.remove(&chat_id);
+    }
+
+    async fn enable(&self, chat_id: i64, thread_id: Option<i64>) {
+        todo!()
+    }
+    async fn disable(&self, chat_id: i64, thread_id: Option<i64>) {
+        todo!()
+    }
+    async fn is_enabled(&self, chat_id: i64, thread_id: Option<i64>) -> bool {
+        todo!()
     }
 }
