@@ -1,4 +1,4 @@
-# Open-AI-API-Telegram-Bot
+# Open-AI-API-Telegram-Bot (NOW UNDER RECONSTRUCTION)
 
 This repo had everything to run a telegram bot, with in-memory or SQLite storage for context and user settings.
 This bot works with a local language model, tested via LM Studio's LLMs.
