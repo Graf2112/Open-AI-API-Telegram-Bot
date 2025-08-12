@@ -1,5 +1,6 @@
 use sqlx::{Executor, Pool, Sqlite, query};
 use std::sync::Arc;
+use teloxide::types::ThreadId;
 use tracing::{Level, event};
 
 use async_trait::async_trait;
@@ -189,13 +190,13 @@ impl Storage for DbStorage {
     async fn erase_notes(&self, chat_id: i64) {
         todo!()
     }
-    async fn enable(&self, chat_id: i64, thread_id: Option<i64>) {
+    async fn enable(&self, chat_id: i64, thread_id: Option<i64>, is_super: bool) {
         todo!()
     }
-    async fn disable(&self, chat_id: i64, thread_id: Option<i64>) {
+    async fn disable(&self, chat_id: i64, thread_id: Option<i64>, is_super: bool) {
         todo!()
     }
-    async fn is_enabled(&self, chat_id: i64, thread_id: Option<i64>) -> bool {
+    async fn is_enabled(&self, chat_id: i64, thread_id: Option<ThreadId>, is_super: bool) -> bool {
         todo!()
     }
 }

@@ -5,7 +5,7 @@ use crate::{
 use std::sync::Arc;
 use teloxide::utils::command::BotCommands;
 use teloxide::{Bot, prelude::*, types::Message};
-use tracing::error;
+use tracing::{Level, error, event};
 
 #[derive(BotCommands, Clone, Debug)]
 #[command(
@@ -121,12 +121,12 @@ pub async fn command_handler(
         Command::Chat(text) => {
             let message_id = msg.id;
             let chat_id = msg.chat.id;
+            let thread_id = msg.thread_id;
             let bot_clone = bot.clone();
             let storage_clone = storage.clone();
             let busy_clone = busy.clone();
 
-
-            if !msg.chat.is_private() {
+            if !msg.chat.is_private() && storage.is_enabled(chat_id.0, thread_id, msg.chat.is_supergroup()).await {
                 handle_ai_request(
                     bot_clone,
                     chat_id,
@@ -281,37 +281,177 @@ pub async fn command_handler(
                 if (!msg.chat.is_private() && is_admin(&bot, msg.chat.id, user.id).await)
                     || msg.chat.is_private()
                 {
+                    if !msg.chat.is_private() {
+                        let _ = bot.delete_message(msg.chat.id, msg.id).await;
+                    }
                     storage.erase_notes(msg.chat.id.0).await;
                 }
             }
         }
         Command::Enable => {
-            if let Some(user) = msg.from {
-                if (!msg.chat.is_private() && is_admin(&bot, msg.chat.id, user.id).await)
-                    || msg.chat.is_private()
-                {
-                    if let Some(thread_id) = msg.thread_id {
-                        storage
-                            .enable(msg.chat.id.0, Some(thread_id.0.0 as i64))
-                            .await;
-                    } else {
-                        storage.enable(msg.chat.id.0, None).await;
+            let chat_id = msg.chat.id;
+            let user_id = msg.from.as_ref().map(|u| u.id);
+            let thread_id = msg.thread_id.map(|id| id.0.0 as i64);
+            let is_private = msg.chat.is_private();
+
+            event!(
+                Level::INFO,
+                "Enable command received: chat_id={}, thread_id={:?}, user_id={:?}",
+                chat_id,
+                thread_id,
+                user_id
+            );
+
+            // Check permissions
+            let has_permission = if let Some(user) = &msg.from {
+                if is_private || is_admin(&bot, chat_id, user.id).await {
+                    true
+                } else {
+                    event!(
+                        Level::WARN,
+                        "Permission denied: user_id={} is not admin in chat_id={}",
+                        user.id,
+                        chat_id
+                    );
+                    false
+                }
+            } else {
+                event!(Level::WARN, "Enable command without sender info");
+                false
+            };
+
+            if has_permission {
+                // Delete command message in non-private chats
+                if !is_private {
+                    if let Err(e) = bot.delete_message(chat_id, msg.id).await {
+                        event!(
+                            Level::ERROR,
+                            "Failed to delete command message: chat_id={}, error={}",
+                            chat_id,
+                            e
+                        );
                     }
+                }
+
+                // Apply enable action
+                storage.enable(chat_id.0, thread_id, msg.chat.is_supergroup()).await;
+
+                event!(
+                    Level::INFO,
+                    "Bot enabled: chat_id={}, thread_id={:?}",
+                    chat_id,
+                    thread_id
+                );
+
+                // Send confirmation
+                let confirmation = if thread_id.is_some() {
+                    "✅ Bot enabled in this thread"
+                } else {
+                    "✅ Bot enabled in this chat"
+                };
+
+                if let Err(e) = bot.send_message(chat_id, confirmation).await {
+                    event!(
+                        Level::ERROR,
+                        "Failed to send confirmation: chat_id={}, error={}",
+                        chat_id,
+                        e
+                    );
+                }
+            } else {
+                // Send permission warning
+                let warning = "⛔ You don't have permission to enable the bot";
+                if let Err(e) = bot.send_message(chat_id, warning).await {
+                    event!(
+                        Level::ERROR,
+                        "Failed to send permission warning: chat_id={}, error={}",
+                        chat_id,
+                        e
+                    );
                 }
             }
         }
+
         Command::Disable => {
-            if let Some(user) = msg.from {
-                if (!msg.chat.is_private() && is_admin(&bot, msg.chat.id, user.id).await)
-                    || msg.chat.is_private()
-                {
-                    if let Some(thread_id) = msg.thread_id {
-                        storage
-                            .disable(msg.chat.id.0, Some(thread_id.0.0 as i64))
-                            .await;
-                    } else {
-                        storage.disable(msg.chat.id.0, None).await;
+            let chat_id = msg.chat.id;
+            let user_id = msg.from.as_ref().map(|u| u.id);
+            let thread_id = msg.thread_id.map(|id| id.0.0 as i64);
+            let is_private = msg.chat.is_private();
+
+            event!(
+                Level::INFO,
+                "Disable command received: chat_id={}, thread_id={:?}, user_id={:?}",
+                chat_id,
+                thread_id,
+                user_id
+            );
+
+            // Check permissions
+            let has_permission = if let Some(user) = &msg.from {
+                if is_private || is_admin(&bot, chat_id, user.id).await {
+                    true
+                } else {
+                    event!(
+                        Level::WARN,
+                        "Permission denied: user_id={} is not admin in chat_id={}",
+                        user.id,
+                        chat_id
+                    );
+                    false
+                }
+            } else {
+                event!(Level::WARN, "Disable command without sender info");
+                false
+            };
+
+            if has_permission {
+                // Delete command message in non-private chats
+                if !is_private {
+                    if let Err(e) = bot.delete_message(chat_id, msg.id).await {
+                        event!(
+                            Level::ERROR,
+                            "Failed to delete command message: chat_id={}, error={}",
+                            chat_id,
+                            e
+                        );
                     }
+                }
+
+                // Apply disable action
+                storage.disable(chat_id.0, thread_id, msg.chat.is_supergroup()).await;
+
+                event!(
+                    Level::INFO,
+                    "Bot disabled: chat_id={}, thread_id={:?}",
+                    chat_id,
+                    thread_id
+                );
+
+                // Send confirmation
+                let confirmation = if thread_id.is_some() {
+                    "✅ Bot disabled in this thread"
+                } else {
+                    "✅ Bot disabled in this chat"
+                };
+
+                if let Err(e) = bot.send_message(chat_id, confirmation).await {
+                    event!(
+                        Level::ERROR,
+                        "Failed to send confirmation: chat_id={}, error={}",
+                        chat_id,
+                        e
+                    );
+                }
+            } else {
+                // Send permission warning
+                let warning = "⛔ You don't have permission to disable the bot";
+                if let Err(e) = bot.send_message(chat_id, warning).await {
+                    event!(
+                        Level::ERROR,
+                        "Failed to send permission warning: chat_id={}, error={}",
+                        chat_id,
+                        e
+                    );
                 }
             }
         }

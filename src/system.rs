@@ -23,7 +23,7 @@ const CHUNK_SIZE: usize = 4095;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-static THINK_TAG_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?s)<think>.*?</think>").unwrap());
+static THINK_TAG_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?s)<think>.*?</think>").expect("valid regex"));
 
 /// Loads configuration from settings.toml file
 ///

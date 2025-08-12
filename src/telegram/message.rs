@@ -4,8 +4,11 @@
 //! It processes user commands and manages interactions with the Llama AI model.
 use crate::{storage::Storage, telegram::ai_request::handle_ai_request};
 use dashmap::DashSet;
+use log::info;
 use std::sync::Arc;
-use teloxide::{Bot, prelude::*, types::Message};
+use teloxide::{
+    prelude::*, types::{ChatKind, False, Message}, Bot
+};
 use tracing::warn;
 
 pub type BusySet = Arc<DashSet<i64>>;
@@ -29,6 +32,24 @@ pub async fn message_handler(
     bot_id: UserId,
 ) -> ResponseResult<()> {
     if let Some(user) = &msg.from {
+        let chat_id = msg.chat.id;
+        let thread_id = msg.thread_id;
+        
+        
+        // Обработка разных типов чатов
+        let enabled = match msg.chat.clone().kind {
+            ChatKind::Private(_) => {},
+            ChatKind::Public(chat_public) => match chat_public.kind {
+                teloxide::types::PublicChatKind::Channel(public_chat_channel) => {return Ok(());},
+                teloxide::types::PublicChatKind::Group => {},
+                teloxide::types::PublicChatKind::Supergroup(public_chat_supergroup) => match public_chat_supergroup.is_forum {
+                    true => {},
+                    false => {},
+                },
+            },
+        };
+
+
         if !msg.chat.is_private() {
             if !msg
                 .reply_to_message()
@@ -42,7 +63,6 @@ pub async fn message_handler(
             return Ok(());
         };
 
-        let chat_id = msg.chat.id;
         let message_id = msg.id;
         let text = format!(
             "{{Username: {} (@{}), DateTime: {}, Message: {}}}",
